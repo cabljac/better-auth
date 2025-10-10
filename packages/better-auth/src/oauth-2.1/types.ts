@@ -244,7 +244,7 @@ export interface OAuthClient {
 	client_secret_expires_at?: number;
 	scope?: string;
 	//---- Recommended client data ----//
-	user_id?: string;
+	user_id?: string | null;
 	client_id_issued_at?: number;
 	//---- UI Metadata ----//
 	client_name?: string;

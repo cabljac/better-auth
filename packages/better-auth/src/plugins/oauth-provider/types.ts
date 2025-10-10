@@ -233,14 +233,6 @@ export interface OAuthOptions {
 		scopes: string[],
 	) => Awaitable<Record<string, any>>;
 	/**
-	 * List of all additional claims returned from
-	 * customIdTokenClaims and customJwtClaims.
-	 *
-	 * Must be defined when using
-	 * customIdTokenClaims or customJwtClaims
-	 */
-	customClaims?: string[];
-	/**
 	 * Custom claims attached to id tokens.
 	 * To remain OIDC compliant, claims should be
 	 * namespaced with a URI. For example, a site
@@ -262,9 +254,6 @@ export interface OAuthOptions {
 	 * Overwrite specific /.well-known/openid-configuration
 	 * values so they are not available publically.
 	 * This may be important if not all clients need specific scopes.
-	 *
-	 * NOTE: this does not prevent the system from issuing
-	 * these scopes and returning those claims (use scopes and customClaims instead).
 	 */
 	advertisedMetadata?: {
 		/**
@@ -275,9 +264,6 @@ export interface OAuthOptions {
 		scopes_supported?: string[];
 		/**
 		 * Advertised claims_supported located at /.well-known/openid-configuration
-		 *
-		 * All values must be found in the customClaims field or
-		 * be an internally supported claim.
 		 *
 		 * Internally supported claims:
 		 * ["sub", "iss", "aud", "exp", "iat", "sid", "scope", "azp"]
@@ -567,7 +553,8 @@ export interface SchemaClient {
 	 */
 	allowedScopes?: string[];
 	//---- Recommended client data ----//
-	userId?: string;
+	/** User who owns this client */
+	userId?: string | null;
 	/** Created time */
 	createdAt?: Date;
 	/** Last updated time */

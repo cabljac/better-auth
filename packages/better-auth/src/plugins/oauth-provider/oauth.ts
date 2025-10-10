@@ -83,15 +83,7 @@ export const oauthProvider = (options: OAuthOptions) => {
 		...(scopes.has("profile")
 			? ["name", "picture", "family_name", "given_name"]
 			: []),
-		...(options?.customClaims?.filter((val) => val.length) ?? []),
 	]);
-	for (const cl of options.advertisedMetadata?.claims_supported ?? []) {
-		if (!claims?.has(cl)) {
-			throw new BetterAuthError(
-				`advertisedMetadata.claims_supported ${cl} not found in claims`,
-			);
-		}
-	}
 
 	const opts: OAuthOptions & { claims?: string[] } = {
 		codeExpiresIn: 600, // 10 min
