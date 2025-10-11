@@ -184,55 +184,7 @@ Note the following parameters are not yet supported:
 
 An [OAuth 2.1 authorization endpoint](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#name-authorization-endpoint). Since many of the details are not yet fully described, parts are adapted from the legacy [OAuth 2.0 Authorization Endpoint Section](https://datatracker.ietf.org/doc/html/rfc6749#section-3.1) but always implements the [differences from OAuth 2.0](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#name-differences-from-oauth-20).
 
-The Authorization Endpoint is the entry point for initiating an OAuth 2.1 authorization flows, requiring the grant type `authorization_code` in the options grant types list.
-
-#### Client Login Endpoint
-
-To generate an authorization request from your client, the authorization parameters should look something like the following:
-
-```ts title="/api/login/index.ts"
-import { randomBytes, createHash } from "crypto";
-
-// Save initial state
-const state = randomBytes(32).toString("base64url");
-const codeVerifier = randomBytes(32).toString("base64url");
-const codeChallenge = createHash("SHA-256")
-  .update(codeVerifier)
-  .digest()
-  .toString("base64url");
-const stateData = {
-  codeVerifier,
-  state,
-  redirectUri: "/dashboard",
-};
-// pseudocode set cookie
-await signedCookie(
-  "__Secure-auth.client-state",
-  JSON.stringify(stateData), {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    maxAge: 3600,
-    path: "/api/login",
-  }
-);
-
-// Generate and present app redirect_uri
-const searchParams = new URLSearchParams({
-  client_id: "my_client",
-  redirect_uri: "https://client.example.com/api/login/callback", // required
-  state: "123",
-  code_challenge: codeChallenge,
-  code_challenge_method: "S256",
-  response_type: "code",
-  scope: "openid email profile offline_access",
-});
-return {
-  redirect_uri: `https://auth.example.com/api/auth/oauth2/authorize?${searchParams.toString()}`,
-};
-```
-
-For all endpoint parameters, see [OAuth 2.1 Authorization Request](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#name-authorization-request).
+The Authorization Endpoint is the entry point for initiating an OAuth 2.1 authorization flows.
 
 Important notes:
 - In OAuth 2.1, only `response_type: "code"` is supported.
@@ -240,7 +192,7 @@ Important notes:
 
 **State**
 
-We recommend sending a state to mitigate cross-site request forgery (CSRF) attacks. This works by ensuring your client only responds to requests that your client initially requested.
+We require sending a state to mitigate cross-site request forgery (CSRF) attacks. This works by ensuring your client only responds to requests that your client initially requested.
 
 Generate a state value from your client and store on your client such as in a secure, HTTP-only cookie or database.
 
@@ -248,47 +200,9 @@ Generate a state value from your client and store on your client such as in a se
 
 Code challenges helps protect the authorization `code` returned from the authorization endpoint.
 
-To do so, a code challenge is derived from the code verifier, used and sent in a [Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636) to the Authorization Server.
+To do so, a code challenge is derived from a code verifier and sent in a [Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636) to the Authorization Server.
 
-Now at your `redirect_uri`, check to see if the returned state matches the initial state.
-
-#### Client Callback Endpoint
-
-This endpoint converts the redirect code into tokens. See [Token Endpoint](#token-endpoint) for further details.
-
-```ts title="/api/login/callback.ts"
-// pseudocode get cookie
-const stateCookie = JSON.parse(
-  (await getSignedCookie("__Secure-auth.client-state")) ?? "{}",
-);
-
-// Compare states if returned
-if (stateCookie?.state !== query?.state) {
-  throw new Error("Login state does not match.");
-}
-
-// Exchange code for tokens
-const tokens = await $fetch(
-  `https://auth.example.com/api/auth/oauth2/token`,
-  {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: query.code, // passed from the query parameter
-      code_verifier: stateCookie.codeVerifier, // stored in the cookie
-      client_id: "my_client",
-      client_secret: "my_client_secret", // required
-      scope: "openid email profile offline_access",
-      resource: "https://api.example.com", // optional
-      redirect_uri: "https://client.example.com/api/login/callback", // required since originally sent
-    }),
-  },
-);
-```
+Now at your `redirect_uri` (ie callback), check to see if the returned state matches the initial state, use the `authorization_code` grant and original code verifier at the [Token Endpoint](#token-endpoint) to obtain the tokens.
 
 
 ### Token Endpoint
@@ -327,34 +241,13 @@ type oauth2Consent = {
 ```
 </APIMethod>
 
+
 ### Introspect Endpoint
 
 [RFC7662](https://datatracker.ietf.org/doc/html/rfc7662)-compliant Introspection.
 
 This endpoint provides details of the provided token. If the token is additionally tied to a session, the endpoint will ensure the session is `active`.
 
-<APIMethod path="/oauth2/introspect" method="POST">
-```ts
-type oauth2Introspect = {
-  /**
-   * Client Id.
-   */
-  client_id: string = "my_client",
-  /**
-   * Client Secret.
-   */
-  client_secret: string = "my_client_secret",
-  /**
-   * An access token or refresh token
-   */
-  token: string = "xyz",
-  /**
-   * Type of token when known.
-   */
-  token_type_hint?: "access_token" | "refresh_token" = "access_token",
-}
-```
-</APIMethod>
 
 ### Revoke Endpoint
 
@@ -368,34 +261,10 @@ This endpoint revokes the provided token.
 
 For an `access_token` type, 
 
-<APIMethod path="/oauth2/revoke" method="POST">
-```ts
-type oauth2Revoke = {
-  /**
-   * Client Id.
-   */
-  client_id: string = "my_client",
-  /**
-   * Client Secret.
-   */
-  client_secret: string = "my_client_secret",
-  /**
-   * An access token or refresh token
-   */
-  token: string = "xyz",
-  /**
-   * Type of token when known.
-   */
-  token_type_hint?: "access_token" | "refresh_token" = "access_token",
-}
-```
-</APIMethod>
-
 ### UserInfo Endpoint
 
 The UserInfo Endpoint provides [OIDC](https://openid.net/specs/openid-connect-core-1_0.html)-compliant user information. Available at `/oauth2/userinfo`, the endpoint requires a valid access token with at least the scope `openid`.
 
-<Endpoint path="/oauth2/userinfo" method="GET" />
 ```ts title="client-app.ts"
 // Example of how a client would use the UserInfo endpoint
 const response = await fetch('https://your-domain.com/api/auth/oauth2/userinfo', {
@@ -414,7 +283,7 @@ The UserInfo endpoint returns different claims based on the scopes that were gra
 - `profile`: Returns `name`, `picture`, `given_name`, `family_name`
 - `email`: Returns `email` and `email_verified`
 
-The `getAdditionalUserInfoClaim` function receives the user object, requested scopes array, and the client, allowing you to conditionally include claims based on the scopes granted during authorization. These additional claims will be included in both the UserInfo endpoint response and the ID token.
+The `customUserInfoClaims` function receives the user object, requested scopes array, and the passed access token, allowing you to add additional information to the response.
 
 
 ### Well known
@@ -545,7 +414,7 @@ import { betterAuth } from "better-auth";
 
 export const auth = betterAuth({
   plugins: [oauthProvider({
-    loginPage: "/sign-in"
+    loginPage: "/sign-in" // [!code highlight]
   })]
 })
 ```
@@ -564,35 +433,13 @@ import { betterAuth } from "better-auth";
 
 export const auth = betterAuth({
   plugins: [oauthProvider({
-    consentPage: "/path/to/consent/page"
+    consentPage: "/consent" // [!code highlight]
   })]
 })
 ```
 
-The plugin will redirect the user to the specified path with `consent_code`, `client_id` and `scope` query parameters. You can use this information to display a custom consent screen. Once the user consents, you can call `oauth2.consent` to complete the authorization.
+The plugin will redirect the user to the specified path with `client_id` and `scope` query parameters. You can use this information to display a custom consent screen. Once the user consents, you can call `oauth2.consent` to complete the authorization.
 
-<Endpoint path="/oauth2/consent" method="POST" />
-
-The consent endpoint supports two methods for passing the consent code:
-
-**Method 1: URL Parameter**
-```ts title="consent-page.ts"
-// Get the consent code from the URL
-const params = new URLSearchParams(window.location.search);
-
-// Submit consent with the code in the request body
-const consentCode = params.get('consent_code');
-if (!consentCode) {
-	throw new Error('Consent code not found in URL parameters');
-}
-
-const res = await client.oauth2.consent({
-	accept: true, // or false to deny
-	consent_code: consentCode,
-});
-```
-
-**Method 2: Cookie-Based**
 ```ts title="consent-page.ts"
 // The consent code is automatically stored in a signed cookie
 // Just submit the consent decision
@@ -601,9 +448,6 @@ const res = await client.oauth2.consent({
 	// consent_code not needed when using cookie-based flow
 });
 ```
-
-Both methods are fully supported. The URL parameter method works well with mobile apps and third-party contexts, while the cookie-based method provides a simpler implementation for web applications.
-
 
 ### Trusted Clients
 
@@ -663,32 +507,35 @@ oauthProvider({
 
 ### Claims
 
-Claims are fields defined in your access and id tokens. You can add more claims using the `customClaims`.
+Internally, we support the following claims are supported: ["sub", "iss", "aud", "exp", "iat", "sid", "scope", "azp"].
 
-By internally, we support the following claims are supported: ["sub", "iss", "aud", "exp", "iat", "sid", "scope", "azp"].
+Id token and user info claims should be namespaced when possible to avoid potential future conflicts.
 
-The claims configuration can only be appended to the internal supported claims. Claims should be namespaced when possible to avoid potential future conflicts.
+Claims added inside `customIdTokenClaims` and `customUserInfoClaims` should be added to the `advertisedMetadata.claims_supported` so clients can validate that claim received. In the following example, it would be the base claims plus "locale" and "https://example.com/org".
+
+Pro tip: these functions can may also throw errors such as a user is no longer a member of the organization or no longer has the requested permissions.
 
 ```ts title="auth.ts"
 oauthProvider({
-  customClaims: [ "locale", "https://example.com/roles" ],
   // Attach claims to id tokens
-  customIdTokenClaims: (_user: User, _scopes: string[]) => {
+  customIdTokenClaims: (user, scopes, { organization_id, metadata }) => {
     return {
       locale: "en-GB",
+      "https://example.com/org": organization_id,
     };
   },
   // Attach claims to access tokens
-  customJwtClaims: (_user: User, _scopes: string[]) => {
+  customJwtTokenClaims: (user, scopes, { organization_id, metadata }) => {
     return {
-      "https://example.com/roles": ["admin", "editor"],
+      "https://example.com/org": organization_id,
+      "https://example.com/roles": ["editor"],
     };
   },
   // Additional user info claims
-  getAdditionalUserInfoClaim: (_user: User, _scopes: string[]) => {
+  customUserInfoClaims: (user, scopes, jwt) => {
     return {
       locale: "en-GB",
-      "https://example.com/roles": ["admin", "editor"],
+      "https://example.com/org": jwt["https://example.com/org"],
     };
   },
 })
@@ -770,6 +617,13 @@ oauthProvider({
 ```
 
 
+### Organizations
+
+OAuth Clients are tied to either a user or organization at registration and is immutable. Thus, ensure that the [`activeOrganizationId`](/docs/plugins/organization#active-organization) is set on your active session when you create new clients.
+
+To set user-specific permissions and roles on tokens see [Claims](#claims).
+
+
 ### Storage
 
 By default all secrets are `hashed` by default on the database. This helps protect the `client_secret` in case of a database leak.
@@ -842,7 +696,7 @@ const auth = betterAuth({
 
 The metadata endpoint can be customized so that the publicized scopes and claims differ from those which the server can deliver. This can prevent showcasing all your supported scopes and claims on your metadata endpoint.
 
-All scopes and claims inside the advertisedMetadata section MUST be listed in `scopes` and `customClaims` respectively otherwise initialization will fail.
+All scopes inside the advertisedMetadata section MUST be listed in `scopes` otherwise initialization will fail.
 
 #### Scopes
 
@@ -857,13 +711,12 @@ oauthProvider({
 
 #### Claims
 
-Claims are in addition to the internally supported claims which are automatically determined by `scopes`.
+Claims are in addition to the internally supported claims which are automatically determined by `scopes`. Claims are only applicable for the OIDC (ie "openid" scope).
 
 ```ts title="auth.ts"
 oauthProvider({
-  claims_supported: ["https://client.example.com/roles"],
   advertisedMetadata: {
-    claims_supported: ["https://client.example.com/roles"],
+    claims_supported: ["https://example.com/roles"],
   },
 })
 ```
@@ -1401,7 +1254,7 @@ To improve lookup performance, map the field `client_id` on the table `oauthClie
 - **`getConsentHTML`** is removed in favor of the `consentPage` as raw html is not a response type supported by the authorize endpoint in oAuth
 - **`requirePKCE`** is removed as PKCE is required in oAuth2.1
 - **`allowPlainCodeChallengeMethod`** is removed as the `plain` code challenge is considered less secure than the default `S256` method
-- **`getAdditionalUserInfoClaim`** removes the client object as a parameter
+- **`customUserInfoClaims`** (previously `getAdditionalUserInfoClaim`) replaces the client object parameter with the passed jwt access token instead
 - **`storeClientSecret`** now defaults to `hashed`, or `encrypted` if `disableJwtPlugin: true` (previously `plain`).
 - JWT plugin now is enabled by default. To disable the plugin, set `disableJwtPlugin: true`.
 - Authorization query `code_challenge_method` "S256" must be in caps as described by oAuth 2.1

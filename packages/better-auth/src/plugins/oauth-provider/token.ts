@@ -77,7 +77,7 @@ async function createJwtAccessToken(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 	user: User,
-	clientId: string,
+	client: SchemaClient,
 	audience: string | string[],
 	scopes: string[],
 	overrides?: {
@@ -89,8 +89,11 @@ async function createJwtAccessToken(
 	const iat = overrides?.iat ?? Math.floor(Date.now() / 1000);
 	const expiresIn = opts.accessTokenExpiresIn ?? 3600;
 	const exp = overrides?.exp ?? iat + expiresIn;
-	const customClaims = opts.customJwtClaims
-		? await opts.customJwtClaims(user, scopes)
+	const customClaims = opts.customJwtTokenClaims
+		? await opts.customJwtTokenClaims(user, scopes, {
+				organizationId: client.organizationId,
+				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
+			})
 		: {};
 
 	const jwtPluginOptions = getJwtPlugin(ctx.context).options;
@@ -107,7 +110,7 @@ async function createJwtAccessToken(
 					: audience?.length === 1
 						? audience.at(0)
 						: audience,
-			azp: clientId,
+			azp: client.clientId,
 			scope: scopes.join(" "),
 			sid: overrides?.sid,
 			iss: jwtPluginOptions?.jwt?.issuer ?? ctx.context.baseURL,
@@ -125,7 +128,7 @@ async function createIdToken(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 	user: User,
-	clientId: string,
+	client: SchemaClient,
 	clientSecret: string | undefined,
 	scopes: string[],
 	nonce?: string,
@@ -144,7 +147,10 @@ async function createIdToken(
 	const acr = "urn:mace:incommon:iap:bronze";
 
 	const customClaims = opts.customIdTokenClaims
-		? await opts.customIdTokenClaims(user, scopes)
+		? await opts.customIdTokenClaims(user, scopes, {
+				organizationId: client.organizationId,
+				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
+			})
 		: {};
 
 	const jwtPluginOptions = opts.disableJwtPlugin
@@ -158,7 +164,7 @@ async function createIdToken(
 		acr,
 		iss: jwtPluginOptions?.jwt?.issuer ?? ctx.context.baseURL,
 		sub: user.id,
-		aud: clientId,
+		aud: client.clientId,
 		nonce,
 		iat,
 		exp,
@@ -271,7 +277,7 @@ async function createRefreshToken(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 	user: User,
-	clientId: string,
+	client: SchemaClient,
 	scopes: string[],
 	payload: JWTPayload,
 ) {
@@ -285,7 +291,7 @@ async function createRefreshToken(
 		model: opts.schema?.oauthRefreshToken?.modelName ?? "oauthRefreshToken",
 		data: {
 			token: await storeToken(opts.storeTokens, token, "refresh_token"),
-			clientId,
+			clientId: client.clientId,
 			sessionId,
 			userId: user.id,
 			scopes: scopes.join(" "), // TODO: remove join when native arrays supported
@@ -372,7 +378,7 @@ async function createUserTokens(
 	// Refresh token may need to be created beforehand for id field
 	const earlyRefreshToken =
 		isRefreshToken && !isJwtAccessToken
-			? await createRefreshToken(ctx, opts, user, client.clientId, scopes, {
+			? await createRefreshToken(ctx, opts, user, client, scopes, {
 					iat,
 					exp: iat + (opts.refreshTokenExpiresIn ?? 2592000),
 					sid: sessionId,
@@ -382,19 +388,11 @@ async function createUserTokens(
 	// Sign jwt and refresh tokens in parallel
 	const [accessToken, refreshToken, idToken] = await Promise.all([
 		isJwtAccessToken
-			? createJwtAccessToken(
-					ctx,
-					opts,
-					user,
-					client.clientId,
-					audience,
-					scopes,
-					{
-						iat,
-						exp,
-						sid: sessionId,
-					},
-				)
+			? createJwtAccessToken(ctx, opts, user, client, audience, scopes, {
+					iat,
+					exp,
+					sid: sessionId,
+				})
 			: createOpaqueAccessToken(
 					ctx,
 					opts,
@@ -411,7 +409,7 @@ async function createUserTokens(
 		earlyRefreshToken
 			? earlyRefreshToken
 			: isRefreshToken
-				? createRefreshToken(ctx, opts, user, client.clientId, scopes, {
+				? createRefreshToken(ctx, opts, user, client, scopes, {
 						iat,
 						exp: iat + (opts.refreshTokenExpiresIn ?? 2592000),
 						sid: sessionId,
@@ -422,7 +420,7 @@ async function createUserTokens(
 					ctx,
 					opts,
 					user,
-					client.clientId,
+					client,
 					client.clientSecret,
 					scopes,
 					nonce,

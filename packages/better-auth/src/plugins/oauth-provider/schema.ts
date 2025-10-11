@@ -108,6 +108,14 @@ export const schema = {
 				type: "string",
 				required: false,
 			},
+			organizationId: {
+				type: "string",
+				required: false,
+				references: {
+					model: "organization",
+					field: "id",
+				},
+			},
 			// All other metadata
 			metadata: {
 				type: "json",
@@ -264,5 +272,10 @@ export const schema = {
 				type: "boolean",
 			},
 		},
+	},
+	// Must declare organization here since referenced yet optional
+	organization: {
+		modelName: "organization",
+		fields: {},
 	},
 } satisfies BetterAuthPluginDBSchema;

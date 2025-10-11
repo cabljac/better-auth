@@ -1,3 +1,4 @@
+import type { JWTPayload } from "jose";
 import type { GrantType } from "../../oauth-2.1/types";
 import type { InferOptionSchema, User } from "../../types";
 import type { Awaitable } from "../../types/helper";
@@ -220,35 +221,60 @@ export interface OAuthOptions {
 		| "hashed"
 		| { hash: (token: string, type: StoreTokenType) => Promise<string> };
 	/**
-	 * Get the additional user info claims
-	 *
-	 * This applies only to the OIDC `userinfo` endpoint.
+	 * Custom claims provided at the OIDC `userinfo` endpoint.
 	 *
 	 * @param user - The user object.
 	 * @param scopes - The scopes that the client requested.
-	 * @returns The user info claim.
+	 * @param token - The access token payload used in the /userinfo request
+	 * @returns Additional user info claims
 	 */
-	getAdditionalUserInfoClaim?: (
-		user: User & Record<string, any>,
+	customUserInfoClaims?: (
+		user: User,
 		scopes: string[],
+		token: JWTPayload,
 	) => Awaitable<Record<string, any>>;
 	/**
-	 * Custom claims attached to id tokens.
-	 * To remain OIDC compliant, claims should be
+	 * Custom claims attached to OIDC id tokens.
+	 *
+	 * To remain OIDC-compliant, claims should be
 	 * namespaced with a URI. For example, a site
-	 * example.com should namespace roles at
-	 * https://example.com/roles.
+	 * example.com should namespace an organization at
+	 * https://example.com/organization.
+	 *
+	 * @param user - The user object.
+	 * @param scopes - The scopes that the client requested.
+	 * @param client - Important information attached to the client.
+	 * @returns Additional Jwt token claims
 	 */
 	customIdTokenClaims?: (
 		user: User,
 		scopes: string[],
+		client?: {
+			metadata?: Record<string, any>;
+			organizationId?: string;
+		},
 	) => Awaitable<Record<string, any>>;
 	/**
 	 * Custom claims attached to access tokens.
+	 *
+	 * Use the user and organizationId fields to fetch
+	 * for membership roles/permissions to attach for the token.
+	 * Note that scopes are those that requested,
+	 * permissions are what the the user can actually do which
+	 * must be done in this function.
+	 *
+	 * @param user - The user object.
+	 * @param scopes - The scopes that the client requested.
+	 * @param client - Important information attached to the client.
+	 * @returns Additional Jwt token claims
 	 */
-	customJwtClaims?: (
+	customJwtTokenClaims?: (
 		user: User,
 		scopes: string[],
+		client?: {
+			metadata?: Record<string, any>;
+			organizationId?: string;
+		},
 	) => Awaitable<Record<string, any>>;
 	/**
 	 * Overwrite specific /.well-known/openid-configuration
@@ -618,6 +644,8 @@ export interface SchemaClient {
 	//---- All other metadata ----//
 	/** Used to indicate if consent screen can be skipped */
 	skipConsent?: boolean;
+	/** Organization which owns this client */
+	organizationId?: string;
 	/**
 	 * Additional metadata about the client.
 	 */

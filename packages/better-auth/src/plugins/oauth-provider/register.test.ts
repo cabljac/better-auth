@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { oauthProvider } from "./oauth";
 import type { OAuthClient } from "../../oauth-2.1/types";
 import { createAuthClient } from "../../client";
 import { getTestInstance } from "../../test-utils/test-instance";
 import { jwt } from "../jwt";
 import { oauthProviderClient } from "./client";
+import { organizationClient } from "../organization/client";
+import { organization, type Organization } from "../organization";
 
 describe("oauth register", async () => {
 	const baseUrl = "http://localhost:3000";
@@ -266,5 +268,69 @@ describe("oauth register - unauthenticated", async () => {
 			redirect_uris: [redirectUri],
 		});
 		expect(response.error?.status).toBe(401);
+	});
+});
+
+describe("oauth register - organization", async () => {
+	const providerId = "test";
+	const baseUrl = "http://localhost:3000";
+	const rpBaseUrl = "http://localhost:5000";
+	const redirectUri = `${rpBaseUrl}/api/auth/oauth2/callback/${providerId}`;
+	const { auth, signInWithTestUser, customFetchImpl } = await getTestInstance({
+		baseURL: baseUrl,
+		plugins: [
+			organization(),
+			oauthProvider({
+				loginPage: "/login",
+				consentPage: "/consent",
+				allowDynamicClientRegistration: true,
+				silenceWarnings: {
+					oauthAuthServerConfig: true,
+					openidConfig: true,
+				},
+			}),
+			jwt(),
+		],
+	});
+
+	const { headers, user } = await signInWithTestUser();
+	const serverClient = createAuthClient({
+		plugins: [oauthProviderClient(), organizationClient()],
+		baseURL: baseUrl,
+		fetchOptions: {
+			customFetchImpl,
+			headers,
+		},
+	});
+
+	let org: Organization;
+	beforeAll(async () => {
+		const _org = await auth.api.createOrganization({
+			body: {
+				name: "my-org",
+				slug: "my-org",
+				userId: user.id,
+			},
+		});
+		expect(_org).toBeDefined();
+		org = _org!;
+		await serverClient.organization.setActive({
+			organizationId: org.id,
+			organizationSlug: org.slug,
+		});
+		const session = await serverClient.getSession({
+			fetchOptions: {
+				headers,
+			},
+		});
+		expect((session.data?.session as any).activeOrganizationId).toBe(org?.id);
+	});
+
+	it("should create organizational oauthClient", async () => {
+		const client = await serverClient.oauth2.register({
+			redirect_uris: [redirectUri],
+		});
+		expect(client.data?.user_id).toBeNull();
+		expect(client.data?.organization_id).toBe(org.id);
 	});
 });
