@@ -8,7 +8,7 @@ import { createHash } from "@better-auth/utils/hash";
 import type { OAuthOptions, StoreTokenType } from "./types";
 import { symmetricDecrypt, symmetricEncrypt } from "../../crypto";
 import { databaseToSchema, type DatabaseClient } from "./register";
-import { timingSafeEqual } from "crypto";
+import Crypto from "crypto";
 import type { Auth } from "../../auth";
 
 /**
@@ -128,7 +128,7 @@ async function verifyStoredClientSecret(
 		const a = Buffer.from(valueA, "utf8");
 		const b = Buffer.from(valueB, "utf8");
 		// Inputs must be the same length for timingSafeEqual
-		return a.length === b.length && timingSafeEqual(a, b);
+		return a.length === b.length && Crypto.timingSafeEqual(a, b);
 	}
 
 	if (storageMethod === "hashed") {
