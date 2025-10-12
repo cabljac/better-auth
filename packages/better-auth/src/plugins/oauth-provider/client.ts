@@ -42,6 +42,8 @@ async function _verifyAccessToken(
 		scopes?: string[];
 		jwksUrl?: string;
 		remoteVerify?: VerifyAccessTokenRemote;
+		/** Maps non-url (ie urn, client) resources to resource_metadata */
+		resourceMetadataMappings?: Record<string, string>;
 	},
 ): Promise<JWTPayload>;
 // With auth available
@@ -54,6 +56,8 @@ async function _verifyAccessToken(
 				jwksUrl?: string;
 				remoteVerify?: Omit<VerifyAccessTokenRemote, "introspectUrl"> &
 					Partial<Pick<VerifyAccessTokenRemote, "introspectUrl">>;
+				/** Maps non-url (ie urn, client) resources to resource_metadata */
+				resourceMetadataMappings?: Record<string, string>;
 		  }
 		| undefined,
 	auth: Auth,
@@ -71,6 +75,8 @@ async function _verifyAccessToken(
 		/** If provided, can verify a token remotely */
 		remoteVerify?: Omit<VerifyAccessTokenRemote, "introspectUrl"> &
 			Partial<Pick<VerifyAccessTokenRemote, "introspectUrl">>;
+		/** Maps non-url (ie urn, client) resources to resource_metadata */
+		resourceMetadataMappings?: Record<string, string>;
 	},
 	auth?: Auth,
 ) {
@@ -129,6 +135,8 @@ async function _verifyAccessToken(
 					: undefined,
 		});
 	} catch (error) {
-		handleMcpErrors(error, audience);
+		handleMcpErrors(error, audience, {
+			resourceMetadataMappings: opts?.resourceMetadataMappings,
+		});
 	}
 }

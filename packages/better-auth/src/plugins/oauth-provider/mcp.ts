@@ -19,8 +19,12 @@ export const mcpHandler = <
 	},
 >(
 	/** Resource is the same url as the audience */
-	opts: Parameters<typeof verifyAccessToken>[1],
+	verifyOptions: Parameters<typeof verifyAccessToken>[1],
 	handler: (req: Request, jwt: JWTPayload) => Awaitable<Response>,
+	opts?: {
+		/** Maps non-url (ie urn, client) resources to resource_metadata */
+		resourceMetadataMappings: Record<string, string>;
+	},
 ) => {
 	return async (req: Request) => {
 		const authorization = req.headers?.get("authorization") ?? undefined;
@@ -33,11 +37,11 @@ export const mcpHandler = <
 					message: "missing access token authorization header",
 				});
 			}
-			const token = await verifyAccessToken(accessToken, opts);
+			const token = await verifyAccessToken(accessToken, verifyOptions);
 			return handler(req, token);
 		} catch (error) {
 			try {
-				handleMcpErrors(error, opts.verifyOptions.audience);
+				handleMcpErrors(error, verifyOptions.verifyOptions.audience, opts);
 			} catch (err) {
 				if (err instanceof APIError) {
 					return new Response(err.message, {
@@ -57,18 +61,36 @@ export const mcpHandler = <
  *
  * @internal
  */
-export function handleMcpErrors(error: unknown, resource: string | string[]) {
+export function handleMcpErrors(
+	error: unknown,
+	resource: string | string[],
+	opts?: {
+		/** Maps non-url (ie urn, client) resources to resource_metadata */
+		resourceMetadataMappings?: Record<string, string>;
+	},
+) {
 	if (error instanceof APIError && error.status === "UNAUTHORIZED") {
 		const _resources = Array.isArray(resource) ? resource : [resource];
 		const wwwAuthenticateValue = _resources
 			.map((v) => {
-				const url = new URL(v);
-				let audiencePath = url.pathname;
-				if (audiencePath.endsWith("/"))
-					audiencePath = audiencePath.slice(0, -1);
-				return `Bearer resource_metadata="${url.origin}/.well-known/oauth-protected-resource${
-					audiencePath
-				}"`;
+				let audiencePath: string;
+				if (URL.canParse?.(v)) {
+					const url = new URL(v);
+					audiencePath = url.pathname.endsWith("/")
+						? url.pathname.slice(0, -1)
+						: url.pathname;
+					return `Bearer resource_metadata="${url.origin}/.well-known/oauth-protected-resource${
+						audiencePath
+					}"`;
+				} else {
+					const resourceMetadata = opts?.resourceMetadataMappings?.[v];
+					if (!resourceMetadata) {
+						throw new APIError("INTERNAL_SERVER_ERROR", {
+							message: `missing resource_metadata mapping for ${v}`,
+						});
+					}
+					return `Bearer resource_metadata=${resourceMetadata}`;
+				}
 			})
 			.join(", ");
 		throw new APIError(

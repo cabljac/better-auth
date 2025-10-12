@@ -173,8 +173,8 @@ export async function authorizeEndpoint(
 			ctx.context.secret,
 			cookieAttributes,
 		);
-		const reqestUrl = new URL(ctx.request.url);
-		return handleRedirect(ctx, `${opts.loginPage}${reqestUrl.search}`);
+		const requestUrl = new URL(ctx.request.url);
+		return handleRedirect(ctx, `${opts.loginPage}${requestUrl.search}`);
 	}
 
 	// Force consent screen

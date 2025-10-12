@@ -28,7 +28,7 @@ Please report any issues or bugs on [GitHub](https://github.com/better-auth/bett
   - **Consent**: Ensure consent is granted for each scope.
 - **Resource Endpoints**: Read and manage tokens.
   - **Introspection**: [RFC7662](https://datatracker.ietf.org/doc/html/rfc7662)-compliant Introspection.
-  - **Revocation**: [RFC7009](https://datatracker.ietf.org/doc/html/rfc7662)-compliant Revocation.
+  - **Revocation**: [RFC7009](https://datatracker.ietf.org/doc/html/rfc7009)-compliant Revocation.
 
 **Grants Supported**
 
@@ -236,7 +236,7 @@ type oauth2Consent = {
   /**
    * Accept or deny user consent for a set of scopes
    */
-  accept: boolean = true,
+  accept: boolean,
 }
 ```
 </APIMethod>
@@ -253,7 +253,7 @@ In addition, the introspect endpoint also accepts a `resource` parameter which c
 
 ### Revoke Endpoint
 
-[RFC7009](https://datatracker.ietf.org/doc/html/rfc7662)-compliant Revocation.
+[RFC7009](https://datatracker.ietf.org/doc/html/rfc7009)-compliant Revocation.
 
 This endpoint revokes the provided token.
 
@@ -537,7 +537,7 @@ oauthProvider({
   customUserInfoClaims: ({ user, scopes, jwt }) => {
     return {
       locale: "en-GB",
-      "https://example.com/org": token["https://example.com/org"],
+      "https://example.com/org": jwt["https://example.com/org"],
     };
   },
 })
@@ -816,7 +816,7 @@ If you are using "openid" and confidential MCP clients, you cannot disable the J
       const accessToken = authorization?.startsWith("Bearer ")
         ? authorization.replace("Bearer ", "")
         : authorization;
-      const payload = await client.verifyAccessToken(
+      const payload = await authClient.verifyAccessToken(
         accessToken, {
           verifyOptions: {
             issuer: "https://auth.example.com",

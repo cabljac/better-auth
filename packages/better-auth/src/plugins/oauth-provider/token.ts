@@ -31,18 +31,7 @@ export async function tokenEndpoint(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 ) {
-	let { body } = ctx;
-	if (!body) {
-		throw new APIError("BAD_REQUEST", {
-			error_description: "request body not found",
-			error: "invalid_request",
-		});
-	}
-	if (body instanceof FormData) {
-		body = Object.fromEntries(body.entries());
-	}
-
-	const grantType: GrantType | undefined = body?.grant_type;
+	const grantType: GrantType | undefined = ctx.body?.grant_type;
 
 	if (opts.grantTypes && grantType && !opts.grantTypes.includes(grantType)) {
 		throw new APIError("BAD_REQUEST", {
@@ -53,11 +42,11 @@ export async function tokenEndpoint(
 
 	switch (grantType) {
 		case "authorization_code":
-			return handleAuthorizationCodeGrant(ctx, opts, body);
+			return handleAuthorizationCodeGrant(ctx, opts);
 		case "client_credentials":
-			return handleClientCredentialsGrant(ctx, opts, body);
+			return handleClientCredentialsGrant(ctx, opts);
 		case "refresh_token":
-			return handleRefreshTokenGrant(ctx, opts, body);
+			return handleRefreshTokenGrant(ctx, opts);
 		case undefined:
 			throw new APIError("BAD_REQUEST", {
 				error_description: "missing required grant_type",
@@ -522,7 +511,6 @@ async function checkVerificationValue(
 async function handleAuthorizationCodeGrant(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
-	body: any,
 ) {
 	let {
 		client_id,
@@ -536,7 +524,7 @@ async function handleAuthorizationCodeGrant(
 		code?: string;
 		code_verifier?: string;
 		redirect_uri?: string;
-	} = body;
+	} = ctx.body;
 	const authorization = ctx.request?.headers.get("authorization") || null;
 
 	// Convert basic authorization
@@ -676,7 +664,6 @@ async function handleAuthorizationCodeGrant(
 async function handleClientCredentialsGrant(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
-	body: any,
 ) {
 	let {
 		client_id,
@@ -686,7 +673,7 @@ async function handleClientCredentialsGrant(
 		client_id?: string;
 		client_secret?: string;
 		scope?: string;
-	} = body;
+	} = ctx.body;
 	const authorization = ctx.request?.headers.get("authorization") || null;
 
 	// Convert basic authorization
@@ -813,7 +800,6 @@ async function handleClientCredentialsGrant(
 async function handleRefreshTokenGrant(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
-	body: any,
 ) {
 	let {
 		client_id,
@@ -825,7 +811,7 @@ async function handleRefreshTokenGrant(
 		client_secret?: string;
 		refresh_token?: string;
 		scope?: string;
-	} = body;
+	} = ctx.body;
 
 	const authorization = ctx.request?.headers.get("authorization") || null;
 
