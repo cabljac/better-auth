@@ -140,13 +140,17 @@ async function verifyStoredClientSecret(
 			sideChannelEqual(hashedClientSecret, storedClientSecret)
 		);
 	} else if (typeof storageMethod === "object" && "hash" in storageMethod) {
-		const hashedClientSecret = clientSecret
-			? await storageMethod.hash(clientSecret)
-			: undefined;
-		return (
-			!!hashedClientSecret &&
-			sideChannelEqual(hashedClientSecret, storedClientSecret)
-		);
+		if (storageMethod.verify) {
+			return !!clientSecret && (await storageMethod.verify(clientSecret));
+		} else {
+			const hashedClientSecret = clientSecret
+				? await storageMethod.hash(clientSecret)
+				: undefined;
+			return (
+				!!hashedClientSecret &&
+				sideChannelEqual(hashedClientSecret, storedClientSecret)
+			);
+		}
 	} else if (
 		storageMethod === "encrypted" ||
 		(typeof storageMethod === "object" && "decrypt" in storageMethod)

@@ -188,15 +188,22 @@ export interface OAuthOptions {
 	generateClientSecret?: () => string;
 	/**
 	 * Store the client secret in your database in a secure way
-	 * Note: This will not affect the client secret sent to the user, it will only affect the client secret stored in your database
+	 * Note: This will not affect the client secret sent to the user,
+	 * it will only affect the client secret stored in your database
 	 *
 	 * When disableJwtPlugin = false (recommended):
 	 * - "hashed" - The client secret is hashed using the `hash` function.
-	 * - { hash: (clientSecret: string) => Promise<string> } - A function that hashes the client secret.
+	 * - {
+	 * 	hash: (clientSecret: string) => Promise<string>,
+	 * 	verify?: (clientSecret: string) => Promise<boolean>
+	 * } - A function that hashes the client secret.
 	 *
 	 * When disableJwtPlugin = true:
 	 * - "encrypted" - The client secret is encrypted using the `encrypt` function.
-	 * - { encrypt: (clientSecret: string) => Promise<string>, decrypt: (clientSecret: string) => Promise<string> } - A function that encrypts and decrypts the client secret.
+	 * - {
+	 * 	encrypt: (clientSecret: string) => Promise<string>,
+	 * 	decrypt: (clientSecret: string) => Promise<string>
+	 * } - A function that encrypts and decrypts the client secret.
 	 *
 	 * @default
 	 * options.disableJwtPlugin ? "encrypted" : "hashed"
@@ -204,7 +211,10 @@ export interface OAuthOptions {
 	storeClientSecret?:
 		| "hashed"
 		| "encrypted"
-		| { hash: (clientSecret: string) => Promise<string> }
+		| {
+				hash: (clientSecret: string) => Promise<string>;
+				verify?: (clientSecret: string) => Promise<boolean>;
+		  }
 		| {
 				encrypt: (clientSecret: string) => Promise<string>;
 				decrypt: (clientSecret: string) => Promise<string>;
@@ -213,7 +223,9 @@ export interface OAuthOptions {
 	 * Storage method of opaque access tokens and refresh tokens on your database.
 	 *
 	 * - "hashed" - The client secret is hashed using the `hash` function.
-	 * - { hash: (token: string, type: StoreTokenType) => Promise<string> } - A function that hashes the token
+	 * - {
+	 * 	hash: (token: string, type: StoreTokenType) => Promise<string>
+	 * } - A function that hashes the token
 	 *
 	 * @default "hashed"
 	 */
