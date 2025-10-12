@@ -224,15 +224,17 @@ export interface OAuthOptions {
 	 * Custom claims provided at the OIDC `userinfo` endpoint.
 	 *
 	 * @param user - The user object.
-	 * @param scopes - The scopes that the client requested.
-	 * @param token - The access token payload used in the /userinfo request
-	 * @returns Additional user info claims
+	 * @param scopes - The scopes from the access token used
+	 * in the /userinfo request (matches jwt.scopes)
+	 * @param jwt - The access token payload used in the
+	 * /userinfo request
+	 * @returns Additional claims for userinfo request
 	 */
-	customUserInfoClaims?: (
-		user: User,
-		scopes: string[],
-		token: JWTPayload,
-	) => Awaitable<Record<string, any>>;
+	customUserInfoClaims?: (info?: {
+		user: User;
+		scopes: string[];
+		jwt: JWTPayload;
+	}) => Awaitable<Record<string, any>>;
 	/**
 	 * Custom claims attached to OIDC id tokens.
 	 *
@@ -244,18 +246,22 @@ export interface OAuthOptions {
 	 * @param user - The user object.
 	 * @param scopes - The scopes that the client requested.
 	 * @param client - Important information attached to the client.
-	 * @returns Additional Jwt token claims
+	 * @returns Additional claims for id token
 	 */
-	customIdTokenClaims?: (
-		user: User,
-		scopes: string[],
-		client?: {
-			metadata?: Record<string, any>;
-			organizationId?: string;
-		},
-	) => Awaitable<Record<string, any>>;
+	customIdTokenClaims?: (info?: {
+		/** The user object if token is associated to a user. */
+		user: User;
+		/** Scopes granted for this token */
+		scopes: string[];
+		/** oAuthClient metadata */
+		metadata?: Record<string, any>;
+		/** oAuthClient organization */
+		organizationId?: string;
+	}) => Awaitable<Record<string, any>>;
 	/**
 	 * Custom claims attached to access tokens.
+	 *
+	 * Claims are added for both the token and introspect endpoints.
 	 *
 	 * Use the user and organizationId fields to fetch
 	 * for membership roles/permissions to attach for the token.
@@ -268,14 +274,18 @@ export interface OAuthOptions {
 	 * @param client - Important information attached to the client.
 	 * @returns Additional Jwt token claims
 	 */
-	customJwtTokenClaims?: (
-		user: User,
-		scopes: string[],
-		client?: {
-			metadata?: Record<string, any>;
-			organizationId?: string;
-		},
-	) => Awaitable<Record<string, any>>;
+	customAccessTokenClaims?: (info?: {
+		/** The user object if token is associated to a user. Null if user doesn't exist. Undefined if user not applicable. */
+		user?: User | null;
+		/** Scopes granted for this token */
+		scopes: string[];
+		/** The resource requesting. */
+		resource?: string;
+		/** oAuthClient metadata */
+		metadata?: Record<string, any>;
+		/** oAuthClient organization */
+		organizationId?: string;
+	}) => Awaitable<Record<string, any>>;
 	/**
 	 * Overwrite specific /.well-known/openid-configuration
 	 * values so they are not available publically.

@@ -89,8 +89,11 @@ async function createJwtAccessToken(
 	const iat = overrides?.iat ?? Math.floor(Date.now() / 1000);
 	const expiresIn = opts.accessTokenExpiresIn ?? 3600;
 	const exp = overrides?.exp ?? iat + expiresIn;
-	const customClaims = opts.customJwtTokenClaims
-		? await opts.customJwtTokenClaims(user, scopes, {
+	const customClaims = opts.customAccessTokenClaims
+		? await opts.customAccessTokenClaims({
+				user,
+				scopes,
+				resource: ctx.body.resource,
 				organizationId: client.organizationId,
 				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
 			})
@@ -129,7 +132,6 @@ async function createIdToken(
 	opts: OAuthOptions,
 	user: User,
 	client: SchemaClient,
-	clientSecret: string | undefined,
 	scopes: string[],
 	nonce?: string,
 ) {
@@ -147,7 +149,9 @@ async function createIdToken(
 	const acr = "urn:mace:incommon:iap:bronze";
 
 	const customClaims = opts.customIdTokenClaims
-		? await opts.customIdTokenClaims(user, scopes, {
+		? await opts.customIdTokenClaims({
+				user,
+				scopes,
 				organizationId: client.organizationId,
 				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
 			})
@@ -172,7 +176,7 @@ async function createIdToken(
 
 	// Public clients without a client secret cannot receive an idToken as it can't be verified
 	// Confidential clients would still receive an idToken signed by the clientSecret
-	if (opts.disableJwtPlugin && !clientSecret) {
+	if (opts.disableJwtPlugin && !client.clientSecret) {
 		return undefined;
 	}
 
@@ -184,7 +188,7 @@ async function createIdToken(
 						await decryptStoredClientSecret(
 							ctx,
 							opts.storeClientSecret,
-							clientSecret!,
+							client.clientSecret!,
 						),
 					),
 				)
@@ -246,7 +250,7 @@ async function createOpaqueAccessToken(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 	user: User | undefined,
-	clientId: string,
+	client: SchemaClient,
 	scopes: string[],
 	payload: JWTPayload,
 	refreshId?: string,
@@ -261,7 +265,7 @@ async function createOpaqueAccessToken(
 		model: opts.schema?.oauthAccessToken?.modelName ?? "oauthAccessToken",
 		data: {
 			token: await storeToken(opts.storeTokens, token, "access_token"),
-			clientId,
+			clientId: client.clientId,
 			sessionId: payload?.sid,
 			userId: user?.id,
 			refreshId,
@@ -397,7 +401,7 @@ async function createUserTokens(
 					ctx,
 					opts,
 					user,
-					client.clientId,
+					client,
 					scopes,
 					{
 						iat,
@@ -416,15 +420,7 @@ async function createUserTokens(
 					})
 				: undefined,
 		isIdToken
-			? createIdToken(
-					ctx,
-					opts,
-					user,
-					client,
-					client.clientSecret,
-					scopes,
-					nonce,
-				)
+			? createIdToken(ctx, opts, user, client, scopes, nonce)
 			: undefined,
 	]);
 
@@ -744,7 +740,7 @@ async function handleClientCredentialsGrant(
 		: getJwtPlugin(ctx.context).options;
 	const audience = await checkResource(ctx, opts, requestedScopes);
 
-	await validateClientCredentials(
+	const client = await validateClientCredentials(
 		ctx,
 		opts,
 		client_id,
@@ -772,7 +768,7 @@ async function handleClientCredentialsGrant(
 					options: jwtPluginOptions,
 					payload: {
 						aud: audience,
-						azp: client_id,
+						azp: client.clientId,
 						scope: requestedScopes.join(" "),
 						iss: jwtPluginOptions?.jwt?.issuer ?? ctx.context.baseURL,
 						iat,
@@ -783,7 +779,7 @@ async function handleClientCredentialsGrant(
 					ctx,
 					opts,
 					undefined,
-					client_id,
+					client,
 					requestedScopes,
 					{
 						iat,

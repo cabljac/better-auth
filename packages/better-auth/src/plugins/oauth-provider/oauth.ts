@@ -637,6 +637,7 @@ export const oauthProvider = (options: OAuthOptions) => {
 						token_type_hint: z
 							.enum(["access_token", "refresh_token"])
 							.optional(),
+						resource: z.string().optional(),
 					}),
 					metadata: {
 						isAction: false,
@@ -667,6 +668,11 @@ export const oauthProvider = (options: OAuthOptions) => {
 													enum: ["access_token", "refresh_token"],
 													description:
 														"Hint about the type of the token submitted for introspection",
+												},
+												resource: {
+													type: "string",
+													description:
+														"Introspects a token for a specific resource.",
 												},
 											},
 											required: ["token"],

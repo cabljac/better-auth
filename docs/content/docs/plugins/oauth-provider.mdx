@@ -248,6 +248,8 @@ type oauth2Consent = {
 
 This endpoint provides details of the provided token. If the token is additionally tied to a session, the endpoint will ensure the session is `active`.
 
+In addition, the introspect endpoint also accepts a `resource` parameter which can provide custom claims specific to that resource.
+
 
 ### Revoke Endpoint
 
@@ -518,24 +520,24 @@ Pro tip: these functions can may also throw errors such as a user is no longer a
 ```ts title="auth.ts"
 oauthProvider({
   // Attach claims to id tokens
-  customIdTokenClaims: (user, scopes, { organization_id, metadata }) => {
+  customIdTokenClaims: ({ user, scopes, organization_id, metadata }) => {
     return {
       locale: "en-GB",
       "https://example.com/org": organization_id,
     };
   },
   // Attach claims to access tokens
-  customJwtTokenClaims: (user, scopes, { organization_id, metadata }) => {
+  customAccessTokenClaims: ({ user, scopes, organization_id, metadata }) => {
     return {
       "https://example.com/org": organization_id,
       "https://example.com/roles": ["editor"],
     };
   },
   // Additional user info claims
-  customUserInfoClaims: (user, scopes, jwt) => {
+  customUserInfoClaims: ({ user, scopes, jwt }) => {
     return {
       locale: "en-GB",
-      "https://example.com/org": jwt["https://example.com/org"],
+      "https://example.com/org": token["https://example.com/org"],
     };
   },
 })
@@ -1254,7 +1256,7 @@ To improve lookup performance, map the field `client_id` on the table `oauthClie
 - **`getConsentHTML`** is removed in favor of the `consentPage` as raw html is not a response type supported by the authorize endpoint in oAuth
 - **`requirePKCE`** is removed as PKCE is required in oAuth2.1
 - **`allowPlainCodeChallengeMethod`** is removed as the `plain` code challenge is considered less secure than the default `S256` method
-- **`customUserInfoClaims`** (previously `getAdditionalUserInfoClaim`) replaces the client object parameter with the passed jwt access token instead
+- **`customUserInfoClaims`** (previously `getAdditionalUserInfoClaim`) passes the jwt payload instead of the client of the access token used in the request.
 - **`storeClientSecret`** now defaults to `hashed`, or `encrypted` if `disableJwtPlugin: true` (previously `plain`).
 - JWT plugin now is enabled by default. To disable the plugin, set `disableJwtPlugin: true`.
 - Authorization query `code_challenge_method` "S256" must be in caps as described by oAuth 2.1

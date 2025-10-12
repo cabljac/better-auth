@@ -82,7 +82,7 @@ export async function userInfoEndpoint(
 	const baseUserClaims = userNormalClaims(user, scopes ?? []);
 	const additionalInfoUserClaims =
 		opts.customUserInfoClaims && scopes?.length
-			? await opts.customUserInfoClaims(user, scopes, jwt)
+			? await opts.customUserInfoClaims({ user, scopes, jwt })
 			: {};
 	return ctx.json({
 		...baseUserClaims,
