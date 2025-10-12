@@ -1157,6 +1157,7 @@ export const oauthProvider = (options: OAuthOptions) => {
 			),
 			createOAuthClient: oauthClientEndpoints.createOAuthClient(opts),
 			getOAuthClient: oauthClientEndpoints.getOAuthClient(opts),
+			getOAuthClients: oauthClientEndpoints.getOAuthClients(opts),
 			updateOAuthClient: oauthClientEndpoints.updateOAuthClient(opts),
 			rotateClientSecret: oauthClientEndpoints.rotateClientSecret(opts),
 			deleteOAuthClient: oauthClientEndpoints.deleteOAuthClient(opts),

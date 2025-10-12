@@ -31,6 +31,47 @@ export async function getClientEndpoint(
 	return schemaToOAuth(client, false);
 }
 
+export async function getClientsEndpoint(
+	ctx: GenericEndpointContext,
+	opts: OAuthOptions,
+) {
+	const { user_id, organization_id } = ctx.query;
+
+	if (user_id) {
+		const dbClients = await ctx.context.adapter
+			.findMany<DatabaseClient>({
+				model: opts.schema?.oauthClient?.modelName ?? "oauthClient",
+				where: [{ field: "userId", value: user_id }],
+			})
+			.then((res) => {
+				if (!res) return null;
+				return res.map((v) => {
+					if (v.clientSecret) v.clientSecret = undefined;
+					return schemaToOAuth(databaseToSchema(v), false);
+				});
+			});
+		return dbClients;
+	} else if (organization_id) {
+		const dbClients = await ctx.context.adapter
+			.findMany<DatabaseClient>({
+				model: opts.schema?.oauthClient?.modelName ?? "oauthClient",
+				where: [{ field: "organizationId", value: organization_id }],
+			})
+			.then((res) => {
+				if (!res) return null;
+				return res.map((v) => {
+					if (v.clientSecret) v.clientSecret = undefined;
+					return schemaToOAuth(databaseToSchema(v), false);
+				});
+			});
+		return dbClients;
+	} else {
+		throw new APIError("BAD_REQUEST", {
+			message: "either user_id or organization_id must be provided",
+		});
+	}
+}
+
 export async function deleteClientEndpoint(
 	ctx: GenericEndpointContext & { params: { id: string } },
 	opts: OAuthOptions,

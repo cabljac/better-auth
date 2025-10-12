@@ -6,6 +6,7 @@ import {
 	updateClientEndpoint,
 	rotateClientSecretEndpoint,
 	deleteClientEndpoint,
+	getClientsEndpoint,
 } from "./endpoints";
 import { createOAuthClientEndpoint } from "../register";
 
@@ -220,6 +221,28 @@ export const getOAuthClient = (opts: OAuthOptions) =>
 		},
 		async (ctx) => {
 			return getClientEndpoint(ctx, opts);
+		},
+	);
+
+export const getOAuthClients = (opts: OAuthOptions) =>
+	createAuthEndpoint(
+		"/oauth2/clients",
+		{
+			method: "GET",
+			query: z.object({
+				user_id: z.string().optional(),
+				organization_id: z.string().optional(),
+			}),
+			metadata: {
+				SERVER_ONLY: true,
+				openapi: {
+					description:
+						"Get OAuth2 formatted client details for a user or organization",
+				},
+			},
+		},
+		async (ctx) => {
+			return getClientsEndpoint(ctx, opts);
 		},
 	);
 
