@@ -235,16 +235,16 @@ export interface OAuthOptions {
 	/**
 	 * Custom claims provided at the OIDC `userinfo` endpoint.
 	 *
-	 * @param user - The user object.
-	 * @param scopes - The scopes from the access token used
-	 * in the /userinfo request (matches jwt.scopes)
-	 * @param jwt - The access token payload used in the
-	 * /userinfo request
+	 * @param info - context that may be useful when creating custom claims
 	 * @returns Additional claims for userinfo request
 	 */
 	customUserInfoClaims?: (info?: {
+		/** The user object */
 		user: User;
+		/** The scopes from the access token used
+		 * in the /userinfo request (matches jwt.scopes) */
 		scopes: string[];
+		/** The access token payload used in the /userinfo request */
 		jwt: JWTPayload;
 	}) => Awaitable<Record<string, any>>;
 	/**
@@ -255,10 +255,7 @@ export interface OAuthOptions {
 	 * example.com should namespace an organization at
 	 * https://example.com/organization.
 	 *
-	 * @param user - The user object.
-	 * @param scopes - The scopes that the client requested.
-	 * @param client - Important information attached to the client.
-	 * @returns Additional claims for id token
+	 * @param info - context that may be useful when creating custom claims
 	 */
 	customIdTokenClaims?: (info?: {
 		/** The user object if token is associated to a user. */
@@ -281,10 +278,7 @@ export interface OAuthOptions {
 	 * permissions are what the the user can actually do which
 	 * must be done in this function.
 	 *
-	 * @param user - The user object.
-	 * @param scopes - The scopes that the client requested.
-	 * @param client - Important information attached to the client.
-	 * @returns Additional Jwt token claims
+	 * @param info - context that may be useful when creating custom claims
 	 */
 	customAccessTokenClaims?: (info?: {
 		/** The user object if token is associated to a user. Null if user doesn't exist. Undefined if user not applicable. */
