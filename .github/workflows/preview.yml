@@ -1,5 +1,12 @@
-name: Publish Any Commit
-on: [pull_request]
+name: Publish preview packages
+
+on:
+  workflow_dispatch:  # Manual trigger
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - oauth2.1
 
 jobs:
   build:
