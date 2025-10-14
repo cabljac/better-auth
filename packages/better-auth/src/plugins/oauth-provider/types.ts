@@ -170,6 +170,29 @@ export interface OAuthOptions {
 	 */
 	loginPage: string;
 	/**
+	 * A URL to the account selection page where the user will be redirected if
+	 * the user must select an account (eg. organization, team, account).
+	 *
+	 * After a user logs in, a user may wish to select set an account active.
+	 *
+	 * one the user selects an account, you need to call the `/oauth2/selected-account`
+	 * to continue the login flow.
+	 */
+	selectAccountPage?: string;
+	/**
+	 * Checks to see if an account is selected for the `/oauth2/authorize`.
+	 *
+	 * Return values:
+	 * - true: intended user or account selected
+	 * - false: account is not selected and needs selection
+	 */
+	selectedAccount?: (context: {
+		client: SchemaClient;
+		user: User;
+		session: Session;
+		scopes: string[];
+	}) => Awaitable<boolean>;
+	/**
 	 * A URL to the consent page where the user will be redirected if the client
 	 * requests consent.
 	 *
@@ -568,16 +591,10 @@ export interface OAuthAuthorizationQuery {
  * direct searches by field on the db
  */
 export interface VerificationValue {
-	type: "authorization_code" | "consent";
-	clientId: string;
+	type: "authorization_code" | "consent" | "select_account";
+	query: OAuthAuthorizationQuery;
 	sessionId: string;
 	userId: string;
-	redirectUri?: string;
-	scopes: string;
-	state?: string;
-	codeChallenge?: string;
-	codeChallengeMethod?: "S256";
-	nonce?: string;
 }
 
 /**

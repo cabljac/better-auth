@@ -334,6 +334,8 @@ describe("oauth - prompt", async () => {
 	const port = 3001;
 	const authServerBaseUrl = `http://localhost:${port}`;
 	const rpBaseUrl = "http://localhost:5000";
+	const scopes = ["openid", "profile", "email", "offline_access", "read:posts"];
+	let accountSelected = false;
 	const {
 		auth: authorizationServer,
 		signInWithTestUser,
@@ -349,6 +351,11 @@ describe("oauth - prompt", async () => {
 				silenceWarnings: {
 					oauthAuthServerConfig: true,
 					openidConfig: true,
+				},
+				scopes,
+				selectAccountPage: "/select-account",
+				selectedAccount: () => {
+					return accountSelected;
 				},
 			}),
 		],
@@ -542,7 +549,7 @@ describe("oauth - prompt", async () => {
 			onError(context) {
 				consentRedirectUri = context.response.headers.get("Location") || "";
 				expect(context.response.headers.get("set-cookie")).toContain(
-					"better-auth.oauth_consent_prompt=",
+					"better-auth.oauth_consent=",
 				);
 				cookieSetter(newHeaders)(context);
 				newHeaders.append("Cookie", headers.get("Cookie") || "");
@@ -554,7 +561,7 @@ describe("oauth - prompt", async () => {
 		expect(consentRedirectUri).toContain(`state=`);
 
 		// Give consent and obtain redirect callback
-		const res = await serverClient.oauth2.consent(
+		const consentRes = await serverClient.oauth2.consent(
 			{
 				accept: true,
 			},
@@ -563,16 +570,16 @@ describe("oauth - prompt", async () => {
 				throw: true,
 				onResponse(context) {
 					expect(context.response.headers.get("set-cookie")).toContain(
-						"better-auth.oauth_consent_prompt=; Max-Age=0",
+						"better-auth.oauth_consent=; Max-Age=0",
 					);
 				},
 			},
 		);
-		expect(res.redirect_uri).toContain(redirectUri);
-		expect(res.redirect_uri).toContain(`code=`);
+		expect(consentRes.redirect_uri).toContain(redirectUri);
+		expect(consentRes.redirect_uri).toContain(`code=`);
 
 		let callbackURL = "";
-		await client.$fetch(res.redirect_uri, {
+		await client.$fetch(consentRes.redirect_uri, {
 			method: "GET",
 			headers: oauthHeaders,
 			onError(context) {
@@ -686,7 +693,7 @@ describe("oauth - prompt", async () => {
 			onError(context) {
 				consentRedirectUri = context.response.headers.get("Location") || "";
 				expect(context.response.headers.get("set-cookie")).toContain(
-					"better-auth.oauth_consent_prompt=",
+					"better-auth.oauth_consent=",
 				);
 				cookieSetter(newHeaders)(context);
 				newHeaders.append("Cookie", headers.get("Cookie") || "");
@@ -696,6 +703,110 @@ describe("oauth - prompt", async () => {
 		expect(consentRedirectUri).toContain(`client_id=${oauthClient.client_id}`);
 		expect(consentRedirectUri).toContain(`scope=`);
 		expect(consentRedirectUri).toContain(`state=`);
+	});
+
+	it("select_account - should sign in requesting account selection and consent", async () => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const { customFetchImpl: customFetchImplRP, cookieSetter } =
+			await createTestInstance({
+				scopes: ["openid", "profile", "email", "read:posts"],
+			});
+		const client = createAuthClient({
+			plugins: [genericOAuthClient()],
+			baseURL: rpBaseUrl,
+			fetchOptions: {
+				customFetchImpl: customFetchImplRP,
+			},
+		});
+
+		// Generate authorize url
+		const oauthHeaders = new Headers();
+		const data = await client.signIn.oauth2(
+			{
+				providerId,
+				callbackURL: "/success",
+			},
+			{
+				throw: true,
+				onSuccess: cookieSetter(oauthHeaders),
+			},
+		);
+		expect(data.url).toContain(
+			`${authServerBaseUrl}/api/auth/oauth2/authorize`,
+		);
+		expect(data.url).toContain(`client_id=${oauthClient.client_id}`);
+
+		// Check for redirection to /select-account
+		let selectAccountRedirectUri = "";
+		const newHeaders = new Headers();
+		await serverClient.$fetch(data.url, {
+			method: "GET",
+			onError(context) {
+				selectAccountRedirectUri =
+					context.response.headers.get("Location") || "";
+				expect(context.response.headers.get("set-cookie")).toContain(
+					"better-auth.oauth_select_account=",
+				);
+				cookieSetter(newHeaders)(context);
+				newHeaders.append("Cookie", headers.get("Cookie") || "");
+			},
+		});
+		expect(selectAccountRedirectUri).toContain(`/select-account`);
+		expect(selectAccountRedirectUri).toContain(
+			`client_id=${oauthClient.client_id}`,
+		);
+		expect(selectAccountRedirectUri).toContain(`scope=`);
+		expect(selectAccountRedirectUri).toContain(`state=`);
+
+		// Select account and redirect to /consent
+		accountSelected = true;
+		const selectedAccountRes = await serverClient.oauth2.selectedAccount(
+			{
+				confirm: true,
+			},
+			{
+				headers: newHeaders,
+				throw: true,
+				onResponse(context) {
+					expect(context.response.headers.get("set-cookie")).toContain(
+						"better-auth.oauth_select_account=; Max-Age=0",
+					);
+					expect(context.response.headers.get("set-cookie")).toContain(
+						"better-auth.oauth_consent=",
+					);
+					cookieSetter(newHeaders)(context);
+				},
+			},
+		);
+		expect(selectedAccountRes.redirect_uri).toContain(`/consent`);
+		expect(selectedAccountRes.redirect_uri).toContain(
+			`client_id=${oauthClient.client_id}`,
+		);
+		expect(selectedAccountRes.redirect_uri).toContain(`scope=`);
+		expect(selectedAccountRes.redirect_uri).toContain(`state=`);
+
+		// Give consent and obtain redirect callback
+		const acceptedScopes = ["openid", "read:posts"];
+		const consentRes = await serverClient.oauth2.consent(
+			{
+				accept: true,
+				scope: acceptedScopes.join(" "),
+			},
+			{
+				headers: newHeaders,
+				throw: true,
+				onResponse(context) {
+					expect(context.response.headers.get("set-cookie")).toContain(
+						"better-auth.oauth_consent=; Max-Age=0",
+					);
+				},
+			},
+		);
+		expect(consentRes.redirect_uri).toContain(redirectUri);
+		expect(consentRes.redirect_uri).toContain(`code=`);
 	});
 });
 

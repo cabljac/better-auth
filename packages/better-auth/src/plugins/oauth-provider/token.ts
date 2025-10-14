@@ -480,7 +480,7 @@ async function checkVerificationValue(
 			error: "invalid_verification",
 		});
 	}
-	if (verificationValue.clientId !== client_id) {
+	if (verificationValue.query.client_id !== client_id) {
 		throw new APIError("UNAUTHORIZED", {
 			error_description: "invalid client_id",
 			error: "invalid_client",
@@ -493,8 +493,8 @@ async function checkVerificationValue(
 		});
 	}
 	if (
-		verificationValue.redirectUri &&
-		verificationValue.redirectUri != redirect_uri
+		verificationValue.query?.redirect_uri &&
+		verificationValue.query?.redirect_uri !== redirect_uri
 	) {
 		throw new APIError("BAD_REQUEST", {
 			error_description: "missing verification redirect_uri",
@@ -572,7 +572,7 @@ async function handleAuthorizationCodeGrant(
 		client_id,
 		redirect_uri,
 	);
-	const scopes = verificationValue.scopes?.split(" ");
+	const scopes = verificationValue.query.scope?.split(" ");
 
 	/** Verify Client */
 	const client = await validateClientCredentials(
@@ -585,14 +585,14 @@ async function handleAuthorizationCodeGrant(
 
 	/** Check challenge */
 	const challenge =
-		code_verifier && verificationValue.codeChallengeMethod === "S256"
+		code_verifier && verificationValue.query?.code_challenge_method === "S256"
 			? await createHash("SHA-256", "base64urlnopad").digest(code_verifier)
 			: undefined;
 	if (
 		// AuthCodeWithSecret - Required if sent
 		isAuthCodeWithSecret &&
-		(challenge || verificationValue?.codeChallenge) &&
-		challenge !== verificationValue.codeChallenge
+		(challenge || verificationValue?.query?.code_challenge) &&
+		challenge !== verificationValue.query?.code_challenge
 	) {
 		throw new APIError("UNAUTHORIZED", {
 			error_description: "code verification failed",
@@ -602,7 +602,7 @@ async function handleAuthorizationCodeGrant(
 	if (
 		// AuthCodeWithPkce - Always required
 		isAuthCodeWithPkce &&
-		challenge !== verificationValue.codeChallenge
+		challenge !== verificationValue.query?.code_challenge
 	) {
 		throw new APIError("UNAUTHORIZED", {
 			error_description: "code verification failed",
@@ -648,10 +648,10 @@ async function handleAuthorizationCodeGrant(
 		ctx,
 		opts,
 		client,
-		verificationValue.scopes?.split(" ") ?? [],
+		verificationValue.query.scope?.split(" ") ?? [],
 		user,
 		session.id,
-		verificationValue.nonce,
+		verificationValue.query?.nonce,
 	);
 }
 

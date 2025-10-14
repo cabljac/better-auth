@@ -27,6 +27,7 @@ import { BetterAuthError } from "@better-auth/core/error";
 import { logger } from "@better-auth/core/env";
 import type { ResourceServerMetadata } from "../../oauth-2.1/types";
 import * as oauthClientEndpoints from "./oauthClient";
+import { selectedAccountEndpoint } from "./selectedAccount";
 
 /**
  * oAuth 2.1 provider plugin for Better Auth.
@@ -110,6 +111,16 @@ export const oauthProvider = (options: OAuthOptions) => {
 	) {
 		throw new BetterAuthError(
 			"refresh_token grant requires authorization_code grant",
+		);
+	}
+
+	// Both selectAccountPage and selectedAccount must be defined to process prompt="select_account"
+	if (
+		(opts.selectAccountPage && !opts.selectedAccount) ||
+		(!opts.selectAccountPage && opts.selectedAccount)
+	) {
+		throw new BetterAuthError(
+			"selectAccountPage and selectedAccount should both be defined",
 		);
 	}
 
@@ -218,7 +229,7 @@ export const oauthProvider = (options: OAuthOptions) => {
 						// but clearing the login prompt cookie if forced login prompt
 						ctx.query = JSON.parse(cookie);
 						if (ctx.query?.prompt === "login") {
-							ctx.query!.prompt = undefined; // clear login prompt parameter
+							ctx.query!.prompt = undefined;
 						}
 						ctx.setCookie(loginPromptCookieName, "", {
 							maxAge: 0,
@@ -334,7 +345,7 @@ export const oauthProvider = (options: OAuthOptions) => {
 						code_challenge: z.string().optional(),
 						code_challenge_method: z.enum(["S256"]).optional(),
 						nonce: z.string().optional(),
-						prompt: z.enum(["consent", "login"]).optional(),
+						prompt: z.enum(["consent", "login", "select_account"]).optional(),
 					}),
 					metadata: {
 						openapi: {
@@ -443,7 +454,13 @@ export const oauthProvider = (options: OAuthOptions) => {
 				{
 					method: "POST",
 					body: z.object({
-						accept: z.boolean(),
+						accept: z.boolean().meta({
+							description: "Accept or deny user consent for a set of scopes",
+						}),
+						scope: z.string().optional().meta({
+							description:
+								"List of accept of accepted space-separated scopes. If none is provided, then all originally requested scopes are accepted.",
+						}),
 					}),
 					use: [sessionMiddleware],
 					metadata: {
@@ -475,6 +492,48 @@ export const oauthProvider = (options: OAuthOptions) => {
 				},
 				async (ctx) => {
 					return consentEndpoint(ctx, opts);
+				},
+			),
+			oauth2SelectedAccount: createAuthEndpoint(
+				"/oauth2/selected-account",
+				{
+					method: "POST",
+					body: z.object({
+						confirm: z.boolean().meta({
+							description:
+								"Confirms an account has been selected and authorization can proceed.",
+						}),
+					}),
+					use: [sessionMiddleware],
+					metadata: {
+						openapi: {
+							description: "Handle OAuth2 account selection",
+							responses: {
+								"200": {
+									description: "Consent processed successfully",
+									content: {
+										"application/json": {
+											schema: {
+												type: "object",
+												properties: {
+													redirect_uri: {
+														type: "string",
+														format: "uri",
+														description:
+															"The URI to redirect to, either with an authorization code or an error",
+													},
+												},
+												required: ["redirect_uri"],
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				async (ctx) => {
+					return selectedAccountEndpoint(ctx, opts);
 				},
 			),
 			oauth2Token: createAuthEndpoint(

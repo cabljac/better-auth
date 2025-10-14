@@ -25,7 +25,8 @@ Please report any issues or bugs on [GitHub](https://github.com/better-auth/bett
   - **JWT Signing**: sign JWT tokens when requesting a `resource`
   - **JWKS Verifiable**: verify tokens remotely at the [`/jwks`](/docs/plugins/jwt#verifying-the-token) endpoint
 - **Authorization Prompts**: prompts that initiate specific login flows
-  - **Consent**: Ensure consent is granted for each scope.
+  - **Consent**: Ensure consent is granted for each scope. Forcible with `prompt=consent`.
+  - **Select Account**: Ensure an account is selected prior when specific scopes being granted. Forcible with `prompt=select_account`.
 - **Resource Endpoints**: Read and manage tokens.
   - **Introspection**: [RFC7662](https://datatracker.ietf.org/doc/html/rfc7662)-compliant Introspection.
   - **Revocation**: [RFC7009](https://datatracker.ietf.org/doc/html/rfc7009)-compliant Revocation.
@@ -228,7 +229,7 @@ The refresh token grant enables clients to update their access token without nee
 
 ### Consent Endpoint
 
-Accept or deny user consent for a set of scopes.
+Accept or deny user consent for a set of scopes. Note that when denying scopes, the consent cancels and pre-existing consent remains. To remove consent, delete that user's "oauthConsent" for that client.
 
 <APIMethod path="/oauth2/consent" method="POST">
 ```ts
@@ -237,6 +238,27 @@ type oauth2Consent = {
    * Accept or deny user consent for a set of scopes
    */
   accept: boolean,
+  /**
+   * Space-separated list of accepted scopes. If not provided, the orginally requested scopes are accepted.
+   */
+  scope?: string,
+}
+```
+</APIMethod>
+
+### Select Account Endpoint
+
+Account selection must [configured](#select-account-screen) to perform account selection.
+
+Note that the user-based scopes: ["openid", "profile", "email", "offline_access"] automatically skip account selection. You can add more to this list by returning true for your scope list.
+
+<APIMethod path="/oauth2/consent" method="POST">
+```ts
+type oauth2SelectedAccount = {
+  /**
+   * Confirm an account was selected.
+   */
+  confirm: boolean,
 }
 ```
 </APIMethod>
@@ -426,7 +448,7 @@ You don't need to handle anything from your side; when a new session is created,
 
 ### Consent Screen
 
-When a user is redirected to the OIDC provider for authentication, they may be prompted to authorize the application to access their data. This is known as the consent screen. By default, Better Auth will display a sample consent screen. You can customize the consent screen by providing a `consentPage` option during initialization.
+When a user is redirected to the OIDC provider for authentication, they may be prompted to authorize the application to access their data.
 
 **Note**: Trusted clients with `skipConsent: true` will bypass the consent screen entirely, providing a seamless experience for first-party applications.
 
@@ -440,16 +462,40 @@ export const auth = betterAuth({
 })
 ```
 
-The plugin will redirect the user to the specified path with `client_id` and `scope` query parameters. You can use this information to display a custom consent screen. Once the user consents, you can call `oauth2.consent` to complete the authorization.
+The plugin will redirect the user to the specified path with `client_id` and `scope` query parameters. You can use this information to display a custom consent screen. Once the user consents, you can call `oauth2.consent` to complete the authorization. Note the consent code is automatically stored in a signed cookie.
 
 ```ts title="consent-page.ts"
-// The consent code is automatically stored in a signed cookie
-// Just submit the consent decision
 const res = await client.oauth2.consent({
-	accept: true, // or false to deny
-	// consent_code not needed when using cookie-based flow
+	accept: true,
+  // optional scopes accepted (if not sent, accepted scopes matches the original request)
+  scope: "openid profile email"
 });
 ```
+
+
+### Select Account Screen
+
+When a user is redirected to the select account page during authentication, they may be prompted to select an account before consenting. To enable account selection, you must add the following configuration to your settings.
+
+```ts title="auth.ts"
+oauthProvider({
+  scopes: [ "phone_number", "read:post", "write:post" ],
+  selectAccountPage: "/select-account", // [!code highlight]
+  selectedAccount: ({ scopes, session }) => { // [!code highlight]
+    if (scopes.includes("phone_number")) return true;
+    return !!session.activeOrganizationId;
+  },
+})
+```
+
+The plugin will redirect the user to the `selectAccountPage`. This page should prompt for selection and upon completion of selection, should call `oauth2SelectedAccount`. Note the select_account code is automatically stored in a signed cookie.
+
+```ts title="select-account-page.ts"
+const res = await client.oauth2.oauth2SelectedAccount({
+  confirm: true,
+})
+```
+
 
 ### Trusted Clients
 
