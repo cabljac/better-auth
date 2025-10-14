@@ -45,7 +45,7 @@ export async function getClient(
 		(client) => client.clientId === clientId,
 	);
 	if (trustedClient) {
-		return trustedClient;
+		return Object.assign({}, trustedClient);
 	}
 	const dbClient = await ctx.context.adapter
 		.findOne<DatabaseClient>({
