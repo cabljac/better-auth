@@ -169,91 +169,60 @@ export async function createOAuthClientEndpoint(
 		true,
 	);
 	const client = await ctx.context.adapter
-		.create<DatabaseClient>({
+		.create({
 			model: opts.schema?.oauthClient?.modelName ?? "oauthClient",
-			data: schemaToDatabase(schema),
-		})
-		.then((res) => {
-			return databaseToSchema(res as DatabaseClient);
+			data: schema,
 		});
 	// Format the response according to RFC7591
-	return ctx.json(
-		schemaToOAuth(
-			{
-				...client,
-				clientSecret: clientSecret
-					? (opts.clientSecretPrefix ?? "") + clientSecret
-					: undefined,
-			},
-			true,
-		),
-		{
-			status: 201,
-			headers: {
-				"Cache-Control": "no-store",
-				Pragma: "no-cache",
-			},
-		},
+	const oauthResponse = schemaToOAuth(
+		client as SchemaClient,
+		true,
 	);
+
+	// Filter out null/undefined values per RFC 7591 Section 3.2.1
+	// "The authorization server MUST return all registered metadata about this client"
+	// This means omit fields with no value, don't return null
+	const filteredResponse = Object.fromEntries(
+		Object.entries(oauthResponse).filter(([_, value]) => value != null)
+	);
+
+	return ctx.json(filteredResponse, {
+		status: 201,
+		headers: {
+			"Cache-Control": "no-store",
+			Pragma: "no-cache",
+		},
+	});
 }
 
 /**
  * Client values as stored on the database.
- * TODO: Easily removable when native `string[]` is used
+ * Now uses native arrays - no conversion needed.
  *
  * @internal
  */
-export interface DatabaseClient
-	extends Omit<
-		SchemaClient,
-		| "allowedScopes"
-		| "contacts"
-		| "redirectUris"
-		| "grantTypes"
-		| "responseTypes"
-	> {
-	allowedScopes?: string;
-	contacts?: string;
-	redirectUris?: string;
-	grantTypes?: string;
-	responseTypes?: string;
-}
+export interface DatabaseClient extends SchemaClient {}
 
 /**
  * Converts values stored on the database to a typed schema client.
- * TODO: Easily removable when native `string[]` is used
+ * Now works with native arrays - no conversion needed.
  *
  * @internal
  */
 export function databaseToSchema(input: DatabaseClient): SchemaClient {
-	return {
-		...input,
-		allowedScopes: input.allowedScopes?.split(" "),
-		contacts: input.contacts?.split(","),
-		redirectUris: input.redirectUris?.split(","),
-		grantTypes: input.grantTypes?.split(",") as SchemaClient["grantTypes"],
-		responseTypes: input.responseTypes?.split(
-			",",
-		) as SchemaClient["responseTypes"],
-	};
+	return input; // No conversion needed - arrays are already arrays
 }
 
 /**
  * Converts typed schema client to untyped database type.
- * TODO: Easily removable when native `string[]` is used
+ * Now works with native arrays - no conversion needed.
  *
  * @internal
  */
 export function schemaToDatabase(input: SchemaClient): DatabaseClient {
-	return {
-		...input,
-		allowedScopes: input.allowedScopes?.join(" "),
-		contacts: input.contacts?.join(","),
-		redirectUris: input.redirectUris?.join(","),
-		grantTypes: input.grantTypes?.join(","),
-		responseTypes: input.responseTypes?.join(","),
-	};
+	return input; // No conversion needed - arrays are already arrays
 }
+
 
 /**
  * Converts an OAuth 2.0 Dynamic Client Schema to a Database Schema
