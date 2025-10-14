@@ -164,7 +164,7 @@ export async function createOAuthClientEndpoint(
 			user_id: session?.session?.activeOrganizationId
 				? undefined
 				: session?.session.userId,
-			organization_id: session?.session?.activeOrganizationId,
+			reference_id: session?.session?.activeOrganizationId,
 		},
 		true,
 	);
@@ -300,7 +300,7 @@ export function oauthToSchema(
 		// Not Part of RFC7591 Spec
 		disabled,
 		skip_consent: skipConsent,
-		organization_id: organizationId,
+		reference_id: referenceId,
 		// All other metadata
 		...rest
 	} = input;
@@ -341,7 +341,7 @@ export function oauthToSchema(
 		type,
 		// All other metadata
 		skipConsent,
-		organizationId,
+		referenceId,
 		metadata: cleaned ? undefined : JSON.stringify(rest),
 	};
 }
@@ -388,7 +388,7 @@ export function schemaToOAuth(
 		type,
 		// All other metadata
 		skipConsent,
-		organizationId,
+		referenceId,
 		metadata, // in JSON format
 	} = input;
 
@@ -438,6 +438,6 @@ export function schemaToOAuth(
 		// Not Part of RFC7591 Spec
 		disabled,
 		skip_consent: skipConsent,
-		organization_id: organizationId,
+		reference_id: referenceId,
 	};
 }

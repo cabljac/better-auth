@@ -83,7 +83,7 @@ async function createJwtAccessToken(
 				user,
 				scopes,
 				resource: ctx.body.resource,
-				organizationId: client.organizationId,
+				referenceId: client.referenceId,
 				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
 			})
 		: {};
@@ -141,7 +141,7 @@ async function createIdToken(
 		? await opts.customIdTokenClaims({
 				user,
 				scopes,
-				organizationId: client.organizationId,
+				referenceId: client.referenceId,
 				metadata: client.metadata ? JSON.parse(client.metadata) : undefined,
 			})
 		: {};

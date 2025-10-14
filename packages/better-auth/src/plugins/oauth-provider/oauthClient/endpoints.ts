@@ -35,7 +35,7 @@ export async function getClientsEndpoint(
 	ctx: GenericEndpointContext,
 	opts: OAuthOptions,
 ) {
-	const { user_id, organization_id } = ctx.query;
+	const { user_id, reference_id } = ctx.query;
 
 	if (user_id) {
 		const dbClients = await ctx.context.adapter
@@ -51,11 +51,11 @@ export async function getClientsEndpoint(
 				});
 			});
 		return dbClients;
-	} else if (organization_id) {
+	} else if (reference_id) {
 		const dbClients = await ctx.context.adapter
 			.findMany<DatabaseClient>({
 				model: opts.schema?.oauthClient?.modelName ?? "oauthClient",
-				where: [{ field: "organizationId", value: organization_id }],
+				where: [{ field: "referenceId", value: reference_id }],
 			})
 			.then((res) => {
 				if (!res) return null;
@@ -67,7 +67,7 @@ export async function getClientsEndpoint(
 		return dbClients;
 	} else {
 		throw new APIError("BAD_REQUEST", {
-			message: "either user_id or organization_id must be provided",
+			message: "either user_id or reference_id must be provided",
 		});
 	}
 }

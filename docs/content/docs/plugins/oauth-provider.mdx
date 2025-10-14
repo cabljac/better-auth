@@ -520,16 +520,16 @@ Pro tip: these functions can may also throw errors such as a user is no longer a
 ```ts title="auth.ts"
 oauthProvider({
   // Attach claims to id tokens
-  customIdTokenClaims: ({ user, scopes, organization_id, metadata }) => {
+  customIdTokenClaims: ({ user, scopes, reference_id, metadata }) => {
     return {
       locale: "en-GB",
-      "https://example.com/org": organization_id,
+      "https://example.com/org": reference_id,
     };
   },
   // Attach claims to access tokens
-  customAccessTokenClaims: ({ user, scopes, organization_id, metadata }) => {
+  customAccessTokenClaims: ({ user, scopes, reference_id, metadata }) => {
     return {
-      "https://example.com/org": organization_id,
+      "https://example.com/org": reference_id,
       "https://example.com/roles": ["editor"],
     };
   },
@@ -621,7 +621,15 @@ oauthProvider({
 
 ### Organizations
 
-OAuth Clients are tied to either a user or organization at registration and is immutable. Thus, ensure that the [`activeOrganizationId`](/docs/plugins/organization#active-organization) is set on your active session when you create new clients.
+OAuth Clients are tied to either a user or `reference_id` at registration and is immutable. If you are utilizing the [organization plugin](/docs/plugins/organization), you must ensure that the [`activeOrganizationId`](/docs/plugins/organization#active-organization) is set on your active session when you create new clients.
+
+```ts title="auth.ts"
+oauthProvider({
+  clientRegistrationReference({ session }: {session: Session & { activeOrganizationId?: string }}) {
+    return session?.activeOrganizationId ?? undefined
+  },
+})
+```
 
 To set user-specific permissions and roles on tokens see [Claims](#claims).
 
@@ -940,7 +948,13 @@ Table Name: `oauthClient`
     {
       name: "userId",
       type: "string",
-      description: "ID of the user who owns the client. (optional)",
+      description: "ID of the client owner. (optional)",
+      isOptional: true
+    },
+    {
+      name: "referenceId",
+      type: "string",
+      description: "ID of the reference of the client owner if not a user. (optional)",
       isOptional: true
     },
     {

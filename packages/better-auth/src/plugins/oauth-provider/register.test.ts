@@ -7,6 +7,7 @@ import { jwt } from "../jwt";
 import { oauthProviderClient } from "./client";
 import { organizationClient } from "../organization/client";
 import { organization, type Organization } from "../organization";
+import type { Session } from "../../types";
 
 describe("oauth register", async () => {
 	const baseUrl = "http://localhost:3000";
@@ -284,6 +285,13 @@ describe("oauth register - organization", async () => {
 				loginPage: "/login",
 				consentPage: "/consent",
 				allowDynamicClientRegistration: true,
+				clientRegistrationReference({
+					session,
+				}: {
+					session: Session & { activeOrganizationId?: string };
+				}) {
+					return session?.activeOrganizationId ?? undefined;
+				},
 				silenceWarnings: {
 					oauthAuthServerConfig: true,
 					openidConfig: true,
@@ -331,6 +339,6 @@ describe("oauth register - organization", async () => {
 			redirect_uris: [redirectUri],
 		});
 		expect(client.data?.user_id).toBeNull();
-		expect(client.data?.organization_id).toBe(org.id);
+		expect(client.data?.reference_id).toBe(org.id);
 	});
 });

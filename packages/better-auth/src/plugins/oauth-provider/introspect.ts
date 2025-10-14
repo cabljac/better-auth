@@ -128,7 +128,7 @@ async function validateJwtAccessToken(
 			user,
 			scopes: ((jwtPayload.scopes as string | undefined) ?? "")?.split(" "),
 			resource: ctx.body.resource,
-			organizationId: client?.organizationId,
+			referenceId: client?.referenceId,
 			metadata: client?.metadata ? JSON.parse(client.metadata) : undefined,
 		});
 		jwtPayload = {
@@ -245,7 +245,7 @@ async function validateOpaqueAccessToken(
 				user,
 				scopes: accessToken.scopes,
 				resource: ctx.body.resource,
-				organizationId: client?.organizationId,
+				referenceId: client?.referenceId,
 				metadata: client?.metadata ? JSON.parse(client.metadata) : undefined,
 			})
 		: {};

@@ -231,7 +231,7 @@ export const getOAuthClients = (opts: OAuthOptions) =>
 			method: "GET",
 			query: z.object({
 				user_id: z.string().optional(),
-				organization_id: z.string().optional(),
+				reference_id: z.string().optional(),
 			}),
 			metadata: {
 				SERVER_ONLY: true,

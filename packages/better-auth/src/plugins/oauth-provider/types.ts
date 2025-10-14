@@ -1,6 +1,6 @@
 import type { JWTPayload } from "jose";
 import type { GrantType } from "../../oauth-2.1/types";
-import type { InferOptionSchema, User } from "../../types";
+import type { InferOptionSchema, Session, User } from "../../types";
 import type { Awaitable } from "../../types/helper";
 import { schema } from "./schema";
 
@@ -107,6 +107,21 @@ export interface OAuthOptions {
 	 * @default - undefined (does not expire)
 	 */
 	clientRegistrationClientSecretExpiration?: number | string | Date;
+	/**
+	 * Reference id to the owner of the oauth client.
+	 *
+	 * For example, it can be an organization, team, etc.
+	 * When provided, user_id of the client will be undefined
+	 * and the owner is defined under the field `reference_id`.
+	 *
+	 * With the organization plugin: @example ({ session }) => {
+	 * 	return session?.activeOrganizationId;
+	 * }
+	 */
+	clientRegistrationReference?: (context: {
+		user: User;
+		session: Session;
+	}) => Awaitable<string | undefined>;
 	/**
 	 * List of scopes a newly registered client can have.
 	 *
@@ -264,15 +279,15 @@ export interface OAuthOptions {
 		scopes: string[];
 		/** oAuthClient metadata */
 		metadata?: Record<string, any>;
-		/** oAuthClient organization */
-		organizationId?: string;
+		/** oAuthClient referenceId field (eg. organization, team) */
+		referenceId?: string;
 	}) => Awaitable<Record<string, any>>;
 	/**
 	 * Custom claims attached to access tokens.
 	 *
 	 * Claims are added for both the token and introspect endpoints.
 	 *
-	 * Use the user and organizationId fields to fetch
+	 * Use the user and referenceId fields to fetch
 	 * for membership roles/permissions to attach for the token.
 	 * Note that scopes are those that requested,
 	 * permissions are what the the user can actually do which
@@ -289,8 +304,8 @@ export interface OAuthOptions {
 		resource?: string;
 		/** oAuthClient metadata */
 		metadata?: Record<string, any>;
-		/** oAuthClient organization */
-		organizationId?: string;
+		/** oAuthClient reference (eg. organization, team) */
+		referenceId?: string;
 	}) => Awaitable<Record<string, any>>;
 	/**
 	 * Overwrite specific /.well-known/openid-configuration
@@ -660,8 +675,8 @@ export interface SchemaClient {
 	//---- All other metadata ----//
 	/** Used to indicate if consent screen can be skipped */
 	skipConsent?: boolean;
-	/** Organization which owns this client */
-	organizationId?: string;
+	/** Reference to the owner of this client. Eg. Organization, Team, Profile */
+	referenceId?: string;
 	/**
 	 * Additional metadata about the client.
 	 */
