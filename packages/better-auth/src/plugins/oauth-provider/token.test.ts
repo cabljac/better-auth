@@ -1326,3 +1326,336 @@ describe("oauth token - config", async () => {
 		expect(tokens.data?.access_token).toBeDefined();
 	});
 });
+
+describe("oauth token - MCP compatibility (RFC 8707 Resource Indicators)", async () => {
+	const authServerBaseUrl = "http://localhost:3000";
+	const mcpServerUrl = "https://mcp.example.com";
+	const { auth, signInWithTestUser, customFetchImpl, testUser } =
+		await getTestInstance({
+			baseURL: authServerBaseUrl,
+			plugins: [
+				jwt({
+					jwt: {
+						audience: mcpServerUrl,
+						issuer: authServerBaseUrl,
+					},
+				}),
+				oauthProvider({
+					loginPage: "/login",
+					consentPage: "/oauth2/authorize",
+					silenceWarnings: {
+						oauthAuthServerConfig: true,
+						openidConfig: true,
+					},
+				}),
+			],
+		});
+
+	const { headers } = await signInWithTestUser();
+	const client = createAuthClient({
+		plugins: [oauthProviderClient(), jwtClient()],
+		baseURL: authServerBaseUrl,
+		fetchOptions: {
+			fetch: customFetchImpl,
+		},
+	});
+
+	const redirectUri = `/api/auth/oauth2/callback/test`;
+	const state = "123";
+
+	let oauthClient: OAuthClient | undefined;
+
+	beforeAll(async () => {
+		const { data } = await client.oauth2.registerClient({
+			body: {
+				client_name: "MCP Test Client",
+				redirect_uris: [redirectUri],
+				response_types: ["code"],
+				grant_types: ["authorization_code", "refresh_token"],
+				token_endpoint_auth_method: "client_secret_post",
+			},
+		});
+		oauthClient = data;
+	});
+
+	async function createAuthUrl(
+		overrides?: Partial<Parameters<typeof createAuthorizationURL>[0]>,
+	) {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+		const codeVerifier = generateRandomString(32);
+		const url = await createAuthorizationURL({
+			id: "test",
+			options: {
+				clientId: oauthClient?.client_id,
+				clientSecret: oauthClient?.client_secret,
+				redirectURI: redirectUri,
+			},
+			redirectURI: "",
+			authorizationEndpoint: `${authServerBaseUrl}/api/auth/oauth2/authorize`,
+			state,
+			scopes: ["openid", "profile", "email", "offline_access"],
+			codeVerifier,
+			...overrides,
+		});
+		return {
+			url,
+			codeVerifier,
+		};
+	}
+
+	async function validateAuthCode(
+		overrides: MakeRequired<
+			Partial<Parameters<typeof createAuthorizationCodeRequest>[0]>,
+			"code"
+		>,
+	) {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const { body, headers } = createAuthorizationCodeRequest({
+			...overrides,
+			redirectURI: redirectUri,
+			options: {
+				clientId: oauthClient.client_id,
+				clientSecret: oauthClient.client_secret,
+				redirectURI: redirectUri,
+			},
+		});
+
+		const tokens = await client.$fetch<{
+			access_token?: string;
+			id_token?: string;
+			refresh_token?: string;
+			expires_in?: number;
+			expires_at?: number;
+			token_type?: string;
+			scope?: string;
+			[key: string]: unknown;
+		}>("/oauth2/token", {
+			method: "POST",
+			body: body,
+			headers: headers,
+		});
+
+		return tokens;
+	}
+
+	it("should support resource parameter in authorization request (MCP requirement)", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const scopes = ["openid", "profile"];
+		const { url: authUrl, codeVerifier } = await createAuthUrl({
+			scopes,
+		});
+
+		// Add resource parameter to authorization URL (MCP requirement)
+		const authUrlWithResource = new URL(authUrl);
+		authUrlWithResource.searchParams.set("resource", mcpServerUrl);
+
+		let callbackRedirectUrl = "";
+		await client.$fetch(authUrlWithResource.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+		const url = new URL(callbackRedirectUrl);
+
+		const tokens = await validateAuthCode({
+			code: url.searchParams.get("code")!,
+			codeVerifier,
+		});
+
+		expect(tokens.data?.access_token).toBeDefined();
+		expect(tokens.data?.id_token).toBeDefined();
+		expect(tokens.data?.scope).toBe(scopes.join(" "));
+	});
+
+	it("should support resource parameter in token request (MCP requirement)", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const scopes = ["openid", "offline_access"];
+		const { url: authUrl, codeVerifier } = await createAuthUrl({
+			scopes,
+		});
+
+		// Add resource parameter to authorization URL
+		const authUrlWithResource = new URL(authUrl);
+		authUrlWithResource.searchParams.set("resource", mcpServerUrl);
+
+		let callbackRedirectUrl = "";
+		await client.$fetch(authUrlWithResource.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+		const url = new URL(callbackRedirectUrl);
+
+		// Test token request with resource parameter (MCP requirement)
+		const tokens = await validateAuthCode({
+			code: url.searchParams.get("code")!,
+			codeVerifier,
+			resource: mcpServerUrl,
+		});
+
+		expect(tokens.data?.access_token).toBeDefined();
+		expect(tokens.data?.id_token).toBeDefined();
+		expect(tokens.data?.refresh_token).toBeDefined();
+		expect(tokens.data?.scope).toBe(scopes.join(" "));
+
+		// Verify JWT access token has correct audience
+		const jwks = await createLocalJWKSet({
+			keys: [
+				{
+					kty: "oct",
+					k: auth.secret,
+					alg: "HS256",
+				},
+			],
+		});
+
+		const accessToken = await jwtVerify(tokens.data?.access_token!, jwks, {
+			audience: mcpServerUrl,
+			issuer: authServerBaseUrl,
+		});
+		expect(accessToken.payload.aud).toBe(mcpServerUrl);
+	});
+
+	it("should support multiple resource parameters (MCP requirement)", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const scopes = ["openid", "profile"];
+		const resources = [mcpServerUrl, "https://another-mcp.example.com"];
+		const { url: authUrl, codeVerifier } = await createAuthUrl({
+			scopes,
+		});
+
+		// Add multiple resource parameters to authorization URL
+		const authUrlWithResources = new URL(authUrl);
+		resources.forEach(resource => {
+			authUrlWithResources.searchParams.append("resource", resource);
+		});
+
+		let callbackRedirectUrl = "";
+		await client.$fetch(authUrlWithResources.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+		const url = new URL(callbackRedirectUrl);
+
+		// Test token request with multiple resource parameters
+		const tokens = await validateAuthCode({
+			code: url.searchParams.get("code")!,
+			codeVerifier,
+			resource: resources,
+		});
+
+		expect(tokens.data?.access_token).toBeDefined();
+		expect(tokens.data?.id_token).toBeDefined();
+		expect(tokens.data?.scope).toBe(scopes.join(" "));
+	});
+
+	it("should validate resource parameter consistency between authorization and token requests", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const scopes = ["openid", "profile"];
+		const authorizedResource = mcpServerUrl;
+		const unauthorizedResource = "https://unauthorized.example.com";
+
+		const { url: authUrl, codeVerifier } = await createAuthUrl({
+			scopes,
+		});
+
+		// Add resource parameter to authorization URL
+		const authUrlWithResource = new URL(authUrl);
+		authUrlWithResource.searchParams.set("resource", authorizedResource);
+
+		let callbackRedirectUrl = "";
+		await client.$fetch(authUrlWithResource.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+		const url = new URL(callbackRedirectUrl);
+
+		// Test token request with different resource parameter (should fail)
+		const tokens = await validateAuthCode({
+			code: url.searchParams.get("code")!,
+			codeVerifier,
+			resource: unauthorizedResource,
+		});
+
+		// This should fail because the resource doesn't match what was authorized
+		expect(tokens.error?.status).toBeDefined();
+		expect(tokens.error?.message).toContain("requested resource invalid");
+	});
+
+	it("should work with MCP client credentials flow", async ({ expect }) => {
+		if (!oauthClient?.client_id || !oauthClient?.client_secret) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const testScopes = ["read", "write"];
+		const { body, headers } = createClientCredentialsTokenRequest({
+			options: {
+				clientId: oauthClient.client_id,
+				clientSecret: oauthClient.client_secret,
+				redirectURI: redirectUri,
+			},
+			scope: testScopes.join(" "),
+			resource: mcpServerUrl,
+		});
+
+		const tokens = await client.$fetch<{
+			access_token?: string;
+			expires_in?: number;
+			expires_at?: number;
+			token_type?: string;
+			scope?: string;
+			[key: string]: unknown;
+		}>("/oauth2/token", {
+			method: "POST",
+			body: body,
+			headers: headers,
+		});
+
+		expect(tokens.error?.status).toBeUndefined();
+		expect(tokens.data?.access_token).toBeDefined();
+		expect(tokens.data?.scope).toBe(testScopes.join(" "));
+	});
+});

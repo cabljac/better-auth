@@ -163,4 +163,84 @@ describe("oauth authorize - authenticated", async () => {
 		expect(callbackRedirectUrl).toContain(`code=`);
 		expect(callbackRedirectUrl).toContain(`state=123`);
 	});
+
+	it("should handle resource parameter in authorization request (MCP compatibility)", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const mcpServerUrl = "https://mcp.example.com";
+		const codeVerifier = generateRandomString(32);
+		const url = await createAuthorizationURL({
+			id: providerId,
+			options: {
+				clientId: oauthClient.client_id,
+				clientSecret: oauthClient.client_secret,
+				redirectURI: redirectUri,
+			},
+			redirectURI: "",
+			authorizationEndpoint: `${authServerBaseUrl}/api/auth/oauth2/authorize`,
+			state: "123",
+			scopes: ["openid", "profile"],
+			codeVerifier,
+		});
+
+		// Add resource parameter to authorization URL (MCP requirement)
+		const authUrlWithResource = new URL(url);
+		authUrlWithResource.searchParams.set("resource", mcpServerUrl);
+
+		let callbackRedirectUrl = "";
+		await unauthenticatedClient.$fetch(authUrlWithResource.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+	});
+
+	it("should handle multiple resource parameters in authorization request (MCP compatibility)", async ({
+		expect,
+	}) => {
+		if (!oauthClient?.client_id) {
+			throw Error("beforeAll not run properly");
+		}
+
+		const resources = ["https://mcp.example.com", "https://another-mcp.example.com"];
+		const codeVerifier = generateRandomString(32);
+		const url = await createAuthorizationURL({
+			id: providerId,
+			options: {
+				clientId: oauthClient.client_id,
+				clientSecret: oauthClient.client_secret,
+				redirectURI: redirectUri,
+			},
+			redirectURI: "",
+			authorizationEndpoint: `${authServerBaseUrl}/api/auth/oauth2/authorize`,
+			state: "123",
+			scopes: ["openid", "profile"],
+			codeVerifier,
+		});
+
+		// Add multiple resource parameters to authorization URL (MCP requirement)
+		const authUrlWithResources = new URL(url);
+		resources.forEach(resource => {
+			authUrlWithResources.searchParams.append("resource", resource);
+		});
+
+		let callbackRedirectUrl = "";
+		await unauthenticatedClient.$fetch(authUrlWithResources.toString(), {
+			onError(context) {
+				callbackRedirectUrl = context.response.headers.get("Location") || "";
+			},
+		});
+
+		expect(callbackRedirectUrl).toContain(redirectUri);
+		expect(callbackRedirectUrl).toContain(`code=`);
+		expect(callbackRedirectUrl).toContain(`state=123`);
+	});
 });

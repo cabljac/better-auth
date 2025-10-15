@@ -581,6 +581,13 @@ export interface OAuthAuthorizationQuery {
 	 * with the Claim Value being the nonce value sent in the Authentication Request.
 	 */
 	nonce?: string;
+	/**
+	 * Resource parameter as defined in RFC 8707 Resource Indicators for OAuth 2.0.
+	 * Specifies the target resource for which the token is being requested.
+	 * 
+	 * @see https://www.rfc-editor.org/rfc/rfc8707.html
+	 */
+	resource?: string | string[];
 }
 
 /**
