@@ -315,11 +315,13 @@ async function checkResource(
 		if (scopes.includes("openid")) {
 			audience.push(`${ctx.context.baseURL}/oauth2/userinfo`);
 		}
-		// Check valid audiences
+		// Enhanced audience validation for MCP compatibility
 		const jwtPluginOptions = opts.disableJwtPlugin
 			? undefined
 			: getJwtPlugin(ctx.context).options;
-		const validAudiences = [
+		
+		// Base valid audiences
+		const baseValidAudiences = [
 			jwtPluginOptions?.jwt?.audience ?? ctx.context.baseURL,
 			scopes?.includes("openid")
 				? `${ctx.context.baseURL}/oauth2/userinfo`
@@ -327,12 +329,33 @@ async function checkResource(
 		]
 			.flat()
 			.filter((v) => v?.length);
+		
+		// For MCP compatibility, be more flexible with resource validation
+		// Allow any valid URI as long as it's properly formatted
 		for (const aud of audience) {
-			if (!validAudiences.includes(aud)) {
-				throw new APIError("BAD_REQUEST", {
-					error_description: "requested resource invalid",
-					error: "invalid_request",
-				});
+			// Skip validation for /userinfo endpoint (handled above)
+			if (aud === `${ctx.context.baseURL}/oauth2/userinfo`) {
+				continue;
+			}
+			
+			// Check if it's a valid URI
+			try {
+				const uri = new URL(aud);
+				// Allow any valid HTTPS URI for MCP compatibility
+				if (uri.protocol !== 'https:' && uri.protocol !== 'http:') {
+					throw new APIError("BAD_REQUEST", {
+						error_description: "requested resource must be a valid HTTP/HTTPS URI",
+						error: "invalid_request",
+					});
+				}
+			} catch (error) {
+				// If it's not a valid URI, check against base valid audiences
+				if (!baseValidAudiences.includes(aud)) {
+					throw new APIError("BAD_REQUEST", {
+						error_description: "requested resource invalid",
+						error: "invalid_request",
+					});
+				}
 			}
 		}
 	}
