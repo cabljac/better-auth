@@ -256,7 +256,7 @@ export const schema = {
 				},
 			},
 			scopes: {
-				type: "string",
+				type: "string[]",
 			},
 			createdAt: {
 				type: "date",

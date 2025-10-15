@@ -79,7 +79,7 @@ export async function consentEndpoint(
 	}
 	if (!verificationValue.query.scope) {
 		throw new APIError("UNAUTHORIZED", {
-			error_description: "Missing orginal requested scopes",
+			error_description: "Missing original requested scopes",
 			error: "invalid_request",
 		});
 	}
@@ -129,7 +129,7 @@ export async function consentEndpoint(
 			if (!res) return undefined;
 			return {
 				...res,
-				scopes: (res.scopes as unknown as string)?.split(" "),
+				scopes: res.scopes, // scopes is now already an array from the database
 			} as OAuthConsent & { id: string };
 		});
 	const iat = Math.floor(Date.now() / 1000);
@@ -151,7 +151,7 @@ export async function consentEndpoint(
 					},
 				],
 				update: {
-					scopes: consent.scopes.join(" "),
+					scopes: consent.scopes, // Store array directly
 					updatedAt: new Date(iat * 1000),
 				},
 			})
@@ -159,7 +159,7 @@ export async function consentEndpoint(
 				model: opts.schema?.oauthConsent?.modelName ?? "oauthConsent",
 				data: {
 					...consent,
-					scopes: consent.scopes.join(" "),
+					scopes: consent.scopes, // Store array directly
 				},
 			});
 
