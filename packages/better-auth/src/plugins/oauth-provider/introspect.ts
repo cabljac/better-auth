@@ -183,11 +183,11 @@ async function validateOpaqueAccessToken(
 			],
 		})
 		.then((res) => {
-			// TODO: remove join when native arrays supported
+			// Scopes is already an array from database
 			if (!res) return res;
 			return {
 				...res,
-				scopes: (res.scopes as unknown as string)?.split(" "),
+				scopes: res.scopes,
 			} as OAuthOpaqueAccessToken;
 		});
 	if (!accessToken) {
@@ -291,11 +291,11 @@ async function validateRefreshToken(
 			],
 		})
 		.then((res) => {
-			// TODO: remove join when native arrays supported
+			// Scopes is already an array from database
 			if (!res) return res;
 			return {
 				...res,
-				scopes: (res.scopes as unknown as string)?.split(" "),
+				scopes: res.scopes,
 			};
 		});
 	if (!refreshToken) {

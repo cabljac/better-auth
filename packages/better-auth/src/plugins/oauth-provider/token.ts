@@ -876,11 +876,11 @@ async function handleRefreshTokenGrant(
 			],
 		})
 		.then((res) => {
-			// TODO: remove when native arrays supported
+			// Scopes is already an array from database
 			if (!res) return res;
 			return {
 				...res,
-				scopes: (res?.scopes as unknown as string)?.split(" "),
+				scopes: res.scopes,
 			} as OAuthRefreshToken;
 		});
 

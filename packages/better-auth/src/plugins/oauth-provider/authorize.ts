@@ -258,7 +258,7 @@ export async function authorizeEndpoint(
 			if (!res) return undefined;
 			return {
 				...res,
-				scopes: (res.scopes as unknown as string)?.split(" "),
+				scopes: res.scopes, // Already an array from database
 			} as OAuthConsent;
 		});
 
