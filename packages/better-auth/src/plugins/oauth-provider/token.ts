@@ -258,7 +258,7 @@ async function createOpaqueAccessToken(
 			sessionId: payload?.sid,
 			userId: user?.id,
 			refreshId,
-			scopes: scopes.join(" "), // TODO: remove join when native arrays supported
+			scopes, // Native arrays now supported in database
 			createdAt: new Date(iat * 1000),
 			expiresAt: new Date(exp * 1000),
 		},
@@ -287,7 +287,7 @@ async function createRefreshToken(
 			clientId: client.clientId,
 			sessionId,
 			userId: user.id,
-			scopes: scopes.join(" "), // TODO: remove join when native arrays supported
+			scopes, // Native arrays now supported in database
 			createdAt: new Date(iat * 1000),
 			expiresAt: new Date(exp * 1000),
 		},
